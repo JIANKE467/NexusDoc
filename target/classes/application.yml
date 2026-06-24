@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: nexusdoc
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/nexusdoc?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+
+siliconflow:
+  api-key: ${SILICONFLOW_API_KEY:}
+  base-url: ${SILICONFLOW_BASE_URL:https://api.siliconflow.cn/v1/chat/completions}
+  model: ${SILICONFLOW_MODEL:Qwen/Qwen2.5-7B-Instruct}

@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>文枢 NexusDoc 预览</title>
+    <style>
+      :root {
+        color: #1f2937;
+        background: #f5f7fb;
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; background: #f5f7fb; }
+      .topbar {
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 32px;
+        border-bottom: 1px solid #d8dee9;
+        background: #fff;
+      }
+      .brand { font-size: 20px; font-weight: 700; color: #1d4ed8; }
+      .nav { display: flex; gap: 18px; color: #4b5563; align-items: center; }
+      .nav span:first-child { color: #1d4ed8; font-weight: 700; }
+      main { max-width: 1120px; margin: 0 auto; padding: 28px 20px 48px; }
+      .hero { padding: 48px 0 36px; }
+      .eyebrow { margin: 0 0 12px; color: #1d4ed8; font-weight: 700; }
+      h1 { margin: 0; font-size: 48px; line-height: 1.1; color: #111827; }
+      .subtitle {
+        max-width: 760px;
+        margin: 18px 0 28px;
+        font-size: 18px;
+        line-height: 1.8;
+        color: #4b5563;
+      }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+      button {
+        height: 40px;
+        padding: 0 18px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        background: #fff;
+        color: #1f2937;
+        font-size: 14px;
+        cursor: default;
+      }
+      .primary { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+      .card, .panel {
+        border: 1px solid #d8dee9;
+        border-radius: 8px;
+        background: #fff;
+      }
+      .card { min-height: 150px; padding: 20px; }
+      .card h3 { margin: 0 0 10px; color: #111827; }
+      .card p { margin: 0; line-height: 1.7; color: #6b7280; }
+      .panel { padding: 24px; margin-top: 20px; }
+      .panel h2 { margin: 0 0 18px; font-size: 26px; color: #111827; }
+      .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+      label { display: block; margin-bottom: 8px; color: #374151; font-weight: 600; }
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font: inherit;
+        background: #fff;
+      }
+      textarea { min-height: 190px; resize: vertical; }
+      .result {
+        white-space: pre-wrap;
+        line-height: 1.75;
+        padding: 18px;
+        border-radius: 8px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+      }
+      .history { width: 100%; border-collapse: collapse; }
+      .history th, .history td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+      }
+      .history th { color: #374151; background: #f9fafb; }
+      .muted { color: #6b7280; }
+      @media (max-width: 760px) {
+        .topbar { padding: 0 16px; }
+        .nav { gap: 10px; font-size: 13px; }
+        h1 { font-size: 36px; }
+        .grid, .form-grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">文枢 NexusDoc</div>
+      <nav class="nav">
+        <span>处理文档</span>
+        <span>历史记录</span>
+        <span>demo_user</span>
+      </nav>
+    </header>
+    <main>
+      <section class="hero">
+        <p class="eyebrow">AI 文档理解与知识整理助手</p>
+        <h1>文枢 NexusDoc</h1>
+        <p class="subtitle">
+          把冗长、杂乱、难读的文档转化为摘要、要点、提纲、行动清单和可继续追问的知识工作包。
+        </p>
+        <div class="actions">
+          <button class="primary">开始处理文档</button>
+          <button>查看历史记录</button>
+        </div>
+      </section>
+      <section class="grid">
+        <div class="card">
+          <h3>结构化输出</h3>
+          <p>根据文档类型生成摘要、核心要点、待办事项、风险提醒和推荐追问。</p>
+        </div>
+        <div class="card">
+          <h3>历史沉淀</h3>
+          <p>保存原文和 AI 结果，随时回看处理过的文档工作包。</p>
+        </div>
+        <div class="card">
+          <h3>基于文档追问</h3>
+          <p>围绕当前文档继续提问，减少偏题和无依据回答。</p>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>处理文档</h2>
+        <div class="form-grid">
+          <div>
+            <label>文档标题</label>
+            <input value="项目需求会议记录" />
+          </div>
+          <div>
+            <label>文档类型</label>
+            <select><option>会议纪要</option></select>
+          </div>
+          <div>
+            <label>标签</label>
+            <input value="项目管理" />
+          </div>
+        </div>
+        <p></p>
+        <label>文档正文</label>
+        <textarea>这里粘贴一段会议记录、学习资料、政策公告或合同文本，系统会调用后端 AI 服务生成结构化文档工作包。</textarea>
+        <p class="actions"><button class="primary">生成文档工作包</button><button>清空</button></p>
+      </section>
+      <section class="panel">
+        <h2>生成结果</h2>
+        <div class="result">【会议主题】
+NexusDoc 课程设计项目推进
+
+【讨论要点】
+1. 完成注册登录、文档生成、历史记录和追问闭环。
+2. 后端统一返回 ApiResponse，异常由 GlobalExceptionHandler 处理。
+3. 前端使用 Vue 3、Element Plus 和封装后的 API 调用。
+
+【待办事项】
+配置 MySQL 和 SILICONFLOW_API_KEY 后进行完整联调。</div>
+      </section>
+      <section class="panel">
+        <h2>历史记录</h2>
+        <table class="history">
+          <thead><tr><th>标题</th><th>类型</th><th>标签</th><th>摘要预览</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>项目需求会议记录</td>
+              <td>会议纪要</td>
+              <td>项目管理</td>
+              <td class="muted">NexusDoc 课程设计项目推进...</td>
+              <td>查看 / 追问 / 删除</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </body>
+</html>

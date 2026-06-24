@@ -1,0 +1,26 @@
+# =========================
+# macOS 系统文件
+# =========================
+
+# Finder 隐藏的系统文件 (存储文件夹自定义属性，如图标位置)
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 自定义文件夹图标 (文件名带有换行符的 Icon 文件)
+Icon?
+
+# 缩略图和含有资源派生数据的文件
+._*
+
+# 系统生成的缓存和回收站目录 (常见于外部驱动器或网络驱动器)
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# 直接连接到电脑的网络共享或外部驱动器相关文件
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk

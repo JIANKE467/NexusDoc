@@ -1,0 +1,27 @@
+{
+  "groups": [
+    {
+      "name": "siliconflow",
+      "type": "com.nexusdoc.common.config.SiliconFlowProperties",
+      "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "siliconflow.api-key",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    },
+    {
+      "name": "siliconflow.base-url",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    },
+    {
+      "name": "siliconflow.model",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    }
+  ],
+  "hints": []
+}
