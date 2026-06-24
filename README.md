@@ -48,6 +48,6 @@ npm run dev
 - `POST /api/document/generate`：生成文档工作包
 - `GET /api/document/list?userId=1`：获取历史记录
 - `GET /api/document/detail/{documentId}`：查看文档详情
-- `DELETE /api/document/{documentId}`：删除文档
+- `DELETE /api/document/{documentId}`：删除下文档
 - `POST /api/chat/ask`：文档追问
 - `GET /api/chat/list?documentId=1`：获取追问记录
