@@ -14,9 +14,11 @@ import com.nexusdoc.mapper.DocumentMapper;
 import com.nexusdoc.mapper.DocumentPackageMapper;
 import com.nexusdoc.service.AiService;
 import com.nexusdoc.service.DocumentService;
+import com.nexusdoc.service.WebSearchService;
 import com.nexusdoc.service.support.InMemoryDocumentStore;
 import com.nexusdoc.vo.DocumentDetailVO;
 import com.nexusdoc.vo.DocumentListVO;
+import com.nexusdoc.vo.WebSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentPackageMapper documentPackageMapper;
     private final ChatRecordMapper chatRecordMapper;
     private final AiService aiService;
+    private final WebSearchService webSearchService;
     private final InMemoryDocumentStore inMemoryDocumentStore;
 
     @Override
@@ -65,7 +68,15 @@ public class DocumentServiceImpl implements DocumentService {
 
         String resultText;
         try {
-            String prompt = PromptTemplateFactory.buildDocumentPrompt(document.getDocType(), document.getContent());
+            boolean enableWebSearch = Boolean.TRUE.equals(request.getEnableWebSearch());
+            List<WebSearchResultVO> searchResults = enableWebSearch
+                    ? webSearchService.search(buildSearchQuery(document.getDocType(), document.getContent()))
+                    : List.of();
+            String prompt = PromptTemplateFactory.buildDocumentPrompt(
+                    document.getDocType(),
+                    document.getContent(),
+                    enableWebSearch,
+                    searchResults);
             resultText = aiService.generate(prompt);
         } catch (RuntimeException exception) {
             if (inMemoryMode) {
@@ -247,6 +258,14 @@ public class DocumentServiceImpl implements DocumentService {
             return new BusinessException(DatabaseExceptionHelper.DATABASE_UNAVAILABLE_MESSAGE);
         }
         throw exception;
+    }
+
+    private String buildSearchQuery(String docType, String content) {
+        String compactContent = content.replaceAll("\\s+", " ").trim();
+        String keywordSource = compactContent.length() > 120
+                ? compactContent.substring(0, 120)
+                : compactContent;
+        return docType + " " + keywordSource;
     }
 
     private void rollbackDocument(Long documentId) {

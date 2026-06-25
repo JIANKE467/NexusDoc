@@ -182,9 +182,15 @@
             @keydown="handleComposerKeydown"
           ></textarea>
           <div class="composer-tools">
-            <select v-model="selectedDocType" aria-label="文档类型">
-              <option v-for="item in docTypes" :key="item" :value="item">{{ item }}</option>
-            </select>
+            <div class="composer-left-tools">
+              <select v-model="selectedDocType" aria-label="文档类型">
+                <option v-for="item in docTypes" :key="item" :value="item">{{ item }}</option>
+              </select>
+              <label class="web-search-toggle" title="开启后，系统会先搜索网络资料，再结合搜索结果回答。">
+                <input v-model="enableWebSearch" type="checkbox" />
+                <span>联网搜索</span>
+              </label>
+            </div>
             <button class="send-button" type="button" :disabled="sending || !inputText.trim()" @click="sendMessage">
               <span v-if="sending">生成中</span>
               <span v-else>发送</span>
@@ -268,6 +274,7 @@ const sessions = ref([]);
 const activeSessionId = ref('');
 const inputText = ref('');
 const selectedDocType = ref('通用总结');
+const enableWebSearch = ref(false);
 const sending = ref(false);
 const sidebarOpen = ref(false);
 const messageViewport = ref(null);
@@ -397,7 +404,8 @@ async function sendMessage() {
       title: session.title,
       docType: selectedDocType.value,
       tag: 'AI 对话',
-      content
+      content,
+      enableWebSearch: enableWebSearch.value
     });
     await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
   } catch (error) {
@@ -1261,6 +1269,13 @@ async function confirmDeleteSession(session) {
   justify-content: space-between;
 }
 
+.composer-left-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .composer select {
   min-height: 38px;
   padding: 0 12px;
@@ -1268,6 +1283,33 @@ async function confirmDeleteSession(session) {
   border-radius: 12px;
   color: #dce7f7;
   background: rgba(15, 23, 42, 0.84);
+}
+
+.web-search-toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  color: #b7c5dc;
+  background: rgba(15, 23, 42, 0.6);
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.web-search-toggle:hover,
+.web-search-toggle:has(input:checked) {
+  color: #a5f3fc;
+  border-color: rgba(103, 232, 249, 0.44);
+  box-shadow: 0 0 26px rgba(14, 165, 233, 0.12);
+}
+
+.web-search-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #22d3ee;
 }
 
 .send-button {

@@ -4,6 +4,11 @@
       "name": "siliconflow",
       "type": "com.nexusdoc.common.config.SiliconFlowProperties",
       "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    },
+    {
+      "name": "web-search",
+      "type": "com.nexusdoc.common.config.WebSearchProperties",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
     }
   ],
   "properties": [
@@ -36,6 +41,36 @@
       "name": "siliconflow.temperature",
       "type": "java.lang.Double",
       "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    },
+    {
+      "name": "web-search.api-key",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.base-url",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.max-results",
+      "type": "java.lang.Integer",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.provider",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.timeout-seconds",
+      "type": "java.lang.Integer",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
     }
   ],
   "hints": []

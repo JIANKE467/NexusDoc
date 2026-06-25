@@ -14,4 +14,6 @@ public class DocumentGenerateRequest {
     private String tag;
 
     private String content;
+
+    private Boolean enableWebSearch;
 }

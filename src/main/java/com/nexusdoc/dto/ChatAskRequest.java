@@ -10,4 +10,6 @@ public class ChatAskRequest {
     private Long documentId;
 
     private String question;
+
+    private Boolean enableWebSearch;
 }

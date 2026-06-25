@@ -24,3 +24,11 @@ siliconflow:
   temperature: 0.4
   max-tokens: 4096
   stream: false
+
+web-search:
+  enabled: true
+  api-key: ${WEB_SEARCH_API_KEY:}
+  base-url: ${WEB_SEARCH_BASE_URL:}
+  provider: ${WEB_SEARCH_PROVIDER:generic}
+  max-results: 5
+  timeout-seconds: 10

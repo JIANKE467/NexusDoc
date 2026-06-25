@@ -1,6 +1,9 @@
 package com.nexusdoc.ai;
 
 import com.nexusdoc.enums.DocumentTypeEnum;
+import com.nexusdoc.vo.WebSearchResultVO;
+
+import java.util.List;
 
 public final class PromptTemplateFactory {
 
@@ -8,6 +11,12 @@ public final class PromptTemplateFactory {
     }
 
     public static String buildDocumentPrompt(String docType, String content) {
+        return buildDocumentPrompt(docType, content, false, List.of());
+    }
+
+    public static String buildDocumentPrompt(String docType, String content,
+                                             boolean webSearchAttempted,
+                                             List<WebSearchResultVO> searchResults) {
         String format = switch (docType) {
             case "会议纪要" -> """
                     【会议主题】
@@ -164,15 +173,23 @@ public final class PromptTemplateFactory {
 
                 文档原文：
                 %s
-                """.formatted(normalizeDocType(docType), format, content);
+                %s
+                """.formatted(normalizeDocType(docType), format, content,
+                buildWebSearchContext(webSearchAttempted, searchResults, docType));
     }
 
     public static String buildAskPrompt(String documentContent, String generatedResult, String question) {
+        return buildAskPrompt(documentContent, generatedResult, question, false, List.of());
+    }
+
+    public static String buildAskPrompt(String documentContent, String generatedResult, String question,
+                                        boolean webSearchAttempted,
+                                        List<WebSearchResultVO> searchResults) {
         return """
                 你是文枢 NexusDoc 的文档追问助手。请严格遵守：
-                1. 只基于当前文档内容回答。
-                2. 不要编造文档中没有的信息。
-                3. 如果原文没有明确提到，回答“原文未明确提到”。
+                1. 未开启联网搜索时，只基于当前文档内容回答。
+                2. 开启联网搜索时，请结合当前文档和网络搜索补充资料回答。
+                3. 不要编造文档和搜索资料中没有的信息。
                 4. 回答要简洁、清楚，适合普通用户理解。
                 5. 不要偏离当前文档主题。
 
@@ -184,10 +201,99 @@ public final class PromptTemplateFactory {
 
                 用户问题：
                 %s
-                """.formatted(documentContent, generatedResult, question);
+                %s
+                """.formatted(documentContent, generatedResult, question,
+                buildWebSearchContext(webSearchAttempted, searchResults, ""));
     }
 
     private static String normalizeDocType(String docType) {
         return DocumentTypeEnum.supports(docType) ? docType : DocumentTypeEnum.GENERAL_SUMMARY.getDisplayName();
+    }
+
+    private static String buildWebSearchContext(boolean webSearchAttempted,
+                                                List<WebSearchResultVO> searchResults,
+                                                String docType) {
+        if (!webSearchAttempted) {
+            return "\n联网搜索：未启用。请只基于用户提供的文档内容回答。";
+        }
+        if (searchResults == null || searchResults.isEmpty()) {
+            return """
+
+                    联网搜索：已启用。
+                    本次已尝试联网搜索，但未检索到有效网络资料。请明确说明这一点，并主要基于用户提供的内容回答。
+                    """;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("""
+
+                以下是网络搜索补充资料，仅供参考。请结合用户原文和搜索结果回答。
+
+                要求：
+                1. 原文明确提到的内容，标记为“原文信息”。
+                2. 搜索结果提供的内容，标记为“网络补充”。
+                3. 基于原文和搜索结果的判断，标记为“合理推断”。
+                4. 不要把推断说成事实。
+                5. 如果搜索结果之间存在冲突，请说明“不同来源说法不一致”。
+                6. 如果没有足够依据，请写“依据不足，无法判断”。
+                7. 不要编造搜索结果中没有的信息。
+                8. 回答末尾列出参考来源标题和链接。
+                """);
+        appendModeSpecificRules(builder, docType);
+        builder.append("\n网络搜索结果：\n");
+        for (WebSearchResultVO result : searchResults) {
+            builder.append("\n[")
+                    .append(result.getIndex())
+                    .append("] 标题：")
+                    .append(blankToUnknown(result.getTitle()))
+                    .append("\n链接：")
+                    .append(blankToUnknown(result.getUrl()))
+                    .append("\n摘要：")
+                    .append(blankToUnknown(result.getSnippet()))
+                    .append("\n");
+        }
+        return builder.toString();
+    }
+
+    private static void appendModeSpecificRules(StringBuilder builder, String docType) {
+        if ("思维导图".equals(docType)) {
+            builder.append("""
+
+                    思维导图模式要求：
+                    1. 返回仍然必须是合法 JSON，不要输出 Markdown 或代码块。
+                    2. JSON 节点可以增加 sourceType 字段，只能是 original、web、inferred。
+                    3. JSON 中增加 references 数组，列出参考来源标题和链接。
+                    """);
+            return;
+        }
+        if ("趋势与隐藏问题分析".equals(docType)) {
+            builder.append("""
+
+                    趋势分析模式建议输出结构：
+                    【文档摘要】
+                    【原文已明确提到的信息】
+                    【网络补充信息】
+                    【可能隐藏的问题】
+                    【潜在风险】
+                    【后续趋势判断】
+                    【依据不足的部分】
+                    【建议追问的问题】
+                    【参考来源】
+                    """);
+            return;
+        }
+        if ("小说设定".equals(docType) || "内容创作".equals(docType)) {
+            builder.append("""
+
+                    创作类任务要求：
+                    1. 网络资料只用于背景参考，不要声称创作内容是原作剧情或真实事实。
+                    2. 可以输出【故事设定参考】【角色关系补充】【创作版本】【参考来源】。
+                    3. 内容必须适合课程项目展示。
+                    """);
+        }
+    }
+
+    private static String blankToUnknown(String value) {
+        return value == null || value.isBlank() ? "未提供" : value;
     }
 }

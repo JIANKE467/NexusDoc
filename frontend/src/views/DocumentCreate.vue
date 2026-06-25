@@ -32,6 +32,14 @@
             placeholder="请粘贴需要理解和整理的文档内容"
           />
         </el-form-item>
+        <el-form-item>
+          <el-switch
+            v-model="form.enableWebSearch"
+            active-text="联网搜索"
+            inactive-text="仅基于原文"
+            title="开启后，系统会先搜索网络资料，再结合搜索结果回答。"
+          />
+        </el-form-item>
         <div class="actions">
           <el-button type="primary" :loading="loading" @click="handleGenerate">生成文档工作包</el-button>
           <el-button @click="clearForm">清空</el-button>
@@ -66,7 +74,8 @@ const form = reactive({
   title: '',
   docType: '通用总结',
   tag: '',
-  content: ''
+  content: '',
+  enableWebSearch: false
 });
 
 async function handleGenerate() {
@@ -81,7 +90,8 @@ async function handleGenerate() {
       title: form.title,
       docType: form.docType,
       tag: form.tag,
-      content: form.content
+      content: form.content,
+      enableWebSearch: form.enableWebSearch
     });
     ElMessage.success('生成成功');
     router.push(`/document/${result.documentId}`);
@@ -95,6 +105,7 @@ function clearForm() {
   form.tag = '';
   form.content = '';
   form.docType = '通用总结';
+  form.enableWebSearch = false;
 }
 </script>
 

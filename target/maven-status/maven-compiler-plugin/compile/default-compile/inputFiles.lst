@@ -3,6 +3,7 @@
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowChatRequest.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowChatResponse.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/config/SiliconFlowProperties.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/config/WebSearchProperties.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/exception/BusinessException.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/exception/DatabaseExceptionHelper.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/exception/GlobalExceptionHandler.java
@@ -24,12 +25,15 @@
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/AiService.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/ChatService.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/DocumentService.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/WebSearchService.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/impl/AiServiceImpl.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/impl/ChatServiceImpl.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/impl/DocumentServiceImpl.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/impl/WebSearchServiceImpl.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/support/InMemoryDocumentStore.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/AiConfigVO.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/ChatAnswerVO.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/ChatRecordVO.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/DocumentDetailVO.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/DocumentListVO.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/vo/WebSearchResultVO.java

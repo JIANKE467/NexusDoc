@@ -13,9 +13,11 @@ import com.nexusdoc.mapper.DocumentMapper;
 import com.nexusdoc.mapper.DocumentPackageMapper;
 import com.nexusdoc.service.AiService;
 import com.nexusdoc.service.ChatService;
+import com.nexusdoc.service.WebSearchService;
 import com.nexusdoc.service.support.InMemoryDocumentStore;
 import com.nexusdoc.vo.ChatAnswerVO;
 import com.nexusdoc.vo.ChatRecordVO;
+import com.nexusdoc.vo.WebSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class ChatServiceImpl implements ChatService {
     private final DocumentPackageMapper documentPackageMapper;
     private final ChatRecordMapper chatRecordMapper;
     private final AiService aiService;
+    private final WebSearchService webSearchService;
     private final InMemoryDocumentStore inMemoryDocumentStore;
 
     @Override
@@ -73,10 +76,17 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
+        boolean enableWebSearch = Boolean.TRUE.equals(request.getEnableWebSearch());
+        List<WebSearchResultVO> searchResults = enableWebSearch
+                ? webSearchService.search(buildSearchQuery(document, request.getQuestion()))
+                : List.of();
+
         String prompt = PromptTemplateFactory.buildAskPrompt(
                 document.getContent(),
                 documentPackage == null ? "" : documentPackage.getResultText(),
-                request.getQuestion().trim()
+                request.getQuestion().trim(),
+                enableWebSearch,
+                searchResults
         );
         String answer = aiService.generate(prompt);
 
@@ -169,5 +179,10 @@ public class ChatServiceImpl implements ChatService {
 
     private Long resolveUserId(Long userId) {
         return userId == null ? ANONYMOUS_USER_ID : userId;
+    }
+
+    private String buildSearchQuery(Document document, String question) {
+        String title = StringUtils.hasText(document.getTitle()) ? document.getTitle() : "";
+        return (title + " " + question).replaceAll("\\s+", " ").trim();
     }
 }

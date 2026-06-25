@@ -28,7 +28,15 @@
             :rows="3"
             placeholder="基于当前文档继续提问"
           />
-          <el-button type="primary" :loading="asking" @click="sendQuestion">发送</el-button>
+          <div class="ask-actions">
+            <el-switch
+              v-model="enableWebSearch"
+              active-text="联网搜索"
+              inactive-text="仅基于原文"
+              title="开启后，系统会先搜索网络资料，再结合搜索结果回答。"
+            />
+            <el-button type="primary" :loading="asking" @click="sendQuestion">发送</el-button>
+          </div>
         </div>
       </template>
     </div>
@@ -49,6 +57,7 @@ const asking = ref(false);
 const detail = ref(null);
 const records = ref([]);
 const question = ref('');
+const enableWebSearch = ref(false);
 
 onMounted(async () => {
   await loadPage();
@@ -74,7 +83,8 @@ async function sendQuestion() {
     const answer = await askDocument({
       userId: ANONYMOUS_USER_ID,
       documentId: Number(route.params.id),
-      question: question.value
+      question: question.value,
+      enableWebSearch: enableWebSearch.value
     });
     records.value.push({
       id: answer.chatRecordId,
@@ -134,5 +144,12 @@ async function sendQuestion() {
 .ask-box {
   display: grid;
   gap: 12px;
+}
+
+.ask-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 </style>
