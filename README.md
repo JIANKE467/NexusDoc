@@ -83,3 +83,7 @@ curl -X POST http://localhost:8080/api/ai/test \
   -H 'Content-Type: application/json' \
   -d '{"prompt":"请用一句话介绍文枢 NexusDoc"}'
 ```
+
+
+## docker启动
+启动方式：在 NexusDoc-test/NexusDoc 目录执行 docker compose up --build。
