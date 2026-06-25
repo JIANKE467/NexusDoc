@@ -36,5 +36,17 @@ services:
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
       SILICONFLOW_BASE_URL: https://api.siliconflow.cn/v1/chat/completions
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexusdoc-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "5173:80"
+
 volumes:
   nexusdoc-db-data:
