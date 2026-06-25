@@ -50,7 +50,18 @@ import { ANONYMOUS_USER_ID } from '../config/user';
 
 const router = useRouter();
 const loading = ref(false);
-const docTypes = ['通用总结', '会议纪要', '工作任务', '学习资料', '政策公告', '合同初读', '内容创作'];
+const docTypes = [
+  '通用总结',
+  '会议纪要',
+  '工作任务',
+  '学习资料',
+  '政策公告',
+  '合同初读',
+  '内容创作',
+  '思维导图',
+  '小说设定',
+  '趋势与隐藏问题分析'
+];
 const form = reactive({
   title: '',
   docType: '通用总结',

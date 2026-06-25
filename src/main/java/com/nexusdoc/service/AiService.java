@@ -9,8 +9,4 @@ public interface AiService {
      * @return AI 生成结果
      */
     String generate(String prompt);
-
-    default String chat(String prompt) {
-        return generate(prompt);
-    }
 }

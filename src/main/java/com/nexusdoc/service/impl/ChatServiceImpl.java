@@ -78,7 +78,7 @@ public class ChatServiceImpl implements ChatService {
                 documentPackage == null ? "" : documentPackage.getResultText(),
                 request.getQuestion().trim()
         );
-        String answer = aiService.chat(prompt);
+        String answer = aiService.generate(prompt);
 
         ChatRecord record = new ChatRecord();
         record.setUserId(userId);

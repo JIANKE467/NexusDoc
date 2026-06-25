@@ -66,7 +66,7 @@ public class DocumentServiceImpl implements DocumentService {
         String resultText;
         try {
             String prompt = PromptTemplateFactory.buildDocumentPrompt(document.getDocType(), document.getContent());
-            resultText = aiService.chat(prompt);
+            resultText = aiService.generate(prompt);
         } catch (RuntimeException exception) {
             if (inMemoryMode) {
                 inMemoryDocumentStore.deleteDocument(document.getId());

@@ -16,22 +16,18 @@
 mysql -u root -p < src/main/resources/db/schema.sql
 ```
 
-2. 配置硅基流动 API Key。推荐复制本地配置模板：
-
-```bash
-cp application-local.example.yml application-local.yml
-```
-
-然后把 `application-local.yml` 中的 `siliconflow.api-key` 改成你的硅基流动 API Key。本地配置文件已加入 `.gitignore`，不会提交到仓库。
-
-也可以使用环境变量：
+2. 配置数据库和硅基流动 AI 服务。API Key 只允许放在后端运行环境变量或后端服务器配置中，不要写入前端代码、打包产物或仓库文件：
 
 ```bash
 export MYSQL_URL='jdbc:mysql://localhost:3306/nexusdoc?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
 export MYSQL_USERNAME='root'
 export MYSQL_PASSWORD='你的数据库密码'
-export SILICONFLOW_API_KEY='你的硅基流动 API Key'
+export SILICONFLOW_API_KEY='your_api_key_here'
+export SILICONFLOW_BASE_URL='https://api.siliconflow.cn/v1/chat/completions'
+export SILICONFLOW_MODEL='Qwen/Qwen3-8B'
 ```
+
+仓库提供 `.env.example` 作为变量名示例，真实 `.env` 文件不要提交到 Git。
 
 3. 启动后端：
 

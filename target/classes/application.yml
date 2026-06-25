@@ -2,10 +2,6 @@ server:
   port: 8080
 
 spring:
-  config:
-    import:
-      - optional:file:./application-local.yml
-      - optional:file:./config/application-local.yml
   application:
     name: nexusdoc
   datasource:
@@ -23,7 +19,8 @@ mybatis-plus:
 
 siliconflow:
   api-key: ${SILICONFLOW_API_KEY:}
-  base-url: ${SILICONFLOW_BASE_URL:https://api.siliconflow.cn/v1/chat/completions}
-  model: Qwen/Qwen3-8B
-  temperature: 0.3
-  max-tokens: 2048
+  base-url: ${SILICONFLOW_BASE_URL:https://api.xcode.best/v1/chat/completions}
+  model: ${SILICONFLOW_MODEL:gpt-5.4}
+  temperature: 0.4
+  max-tokens: 4096
+  stream: false

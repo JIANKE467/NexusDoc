@@ -4,8 +4,6 @@ com/nexusdoc/controller/AiController.class
 com/nexusdoc/common/config/SiliconFlowProperties.class
 com/nexusdoc/common/exception/BusinessException.class
 com/nexusdoc/vo/DocumentDetailVO$DocumentDetailVOBuilder.class
-com/nexusdoc/ai/SiliconFlowRequest$Message.class
-com/nexusdoc/ai/SiliconFlowResponse$Choice.class
 com/nexusdoc/common/result/ResultCode.class
 com/nexusdoc/common/exception/GlobalExceptionHandler.class
 com/nexusdoc/ai/PromptTemplateFactory.class
@@ -14,7 +12,6 @@ com/nexusdoc/service/ChatService.class
 com/nexusdoc/entity/DocumentPackage.class
 com/nexusdoc/dto/ChatAskRequest.class
 com/nexusdoc/service/AiService.class
-com/nexusdoc/ai/SiliconFlowRequest.class
 com/nexusdoc/vo/AiConfigVO$AiConfigVOBuilder.class
 com/nexusdoc/entity/ChatRecord.class
 com/nexusdoc/vo/DocumentDetailVO.class
@@ -23,7 +20,6 @@ com/nexusdoc/entity/Document.class
 com/nexusdoc/dto/AiTestRequest.class
 com/nexusdoc/vo/ChatAnswerVO.class
 com/nexusdoc/service/impl/AiServiceImpl.class
-com/nexusdoc/ai/SiliconFlowResponse.class
 META-INF/spring-configuration-metadata.json
 com/nexusdoc/dto/DocumentGenerateRequest.class
 com/nexusdoc/service/DocumentService.class

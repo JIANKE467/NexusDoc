@@ -28,6 +28,11 @@
       "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
     },
     {
+      "name": "siliconflow.stream",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"
+    },
+    {
       "name": "siliconflow.temperature",
       "type": "java.lang.Double",
       "sourceType": "com.nexusdoc.common.config.SiliconFlowProperties"

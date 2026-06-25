@@ -3,11 +3,11 @@
     <el-header class="topbar">
       <router-link class="brand" to="/">文枢 NexusDoc</router-link>
       <nav class="nav">
-        <router-link to="/">处理文档</router-link>
+        <router-link to="/">AI 对话</router-link>
         <router-link to="/history">历史记录</router-link>
       </nav>
     </el-header>
-    <el-main>
+    <el-main class="app-main">
       <router-view />
     </el-main>
   </el-container>

@@ -1,6 +1,6 @@
 :root {
-  color: #1f2937;
-  background: #f5f7fb;
+  color: #e5eefc;
+  background: #070b18;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
@@ -11,7 +11,7 @@
 body {
   margin: 0;
   min-width: 320px;
-  background: #f5f7fb;
+  background: #070b18;
 }
 
 a {
@@ -21,32 +21,39 @@ a {
 
 .app-shell {
   min-height: 100vh;
+  background: #070b18;
 }
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #d8dee9;
-  background: #ffffff;
+  height: 65px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(7, 11, 24, 0.78);
+  backdrop-filter: blur(18px);
 }
 
 .brand {
   font-size: 20px;
   font-weight: 700;
-  color: #1d4ed8;
+  color: #e8f3ff;
 }
 
 .nav {
   display: flex;
   gap: 18px;
   align-items: center;
-  color: #4b5563;
+  color: #91a3bd;
 }
 
 .nav a.router-link-active {
-  color: #1d4ed8;
+  color: #67e8f9;
   font-weight: 600;
+}
+
+.app-main {
+  padding: 0;
 }
 
 .user-name {

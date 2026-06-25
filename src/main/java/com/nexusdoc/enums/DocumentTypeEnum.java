@@ -12,7 +12,10 @@ public enum DocumentTypeEnum {
     STUDY_MATERIAL("学习资料"),
     POLICY_NOTICE("政策公告"),
     CONTRACT_READING("合同初读"),
-    CONTENT_CREATION("内容创作");
+    CONTENT_CREATION("内容创作"),
+    MIND_MAP("思维导图"),
+    NOVEL_SETTING("小说设定"),
+    TREND_ANALYSIS("趋势与隐藏问题分析");
 
     private final String displayName;
 

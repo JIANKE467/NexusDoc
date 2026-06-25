@@ -1,7 +1,7 @@
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/NexusDocApplication.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/PromptTemplateFactory.java
-/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowRequest.java
-/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowResponse.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowChatRequest.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/ai/SiliconFlowChatResponse.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/config/SiliconFlowProperties.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/exception/BusinessException.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/common/exception/DatabaseExceptionHelper.java
@@ -11,7 +11,6 @@
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/controller/AiController.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/controller/ChatController.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/controller/DocumentController.java
-/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/dto/AiConfigUpdateRequest.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/dto/AiTestRequest.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/dto/ChatAskRequest.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/dto/DocumentGenerateRequest.java
