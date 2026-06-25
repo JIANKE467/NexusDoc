@@ -14,10 +14,10 @@
 
     <aside :class="['chat-sidebar', { 'is-open': sidebarOpen }]">
       <div class="sidebar-brand">
-        <div class="brand-mark">文</div>
+        <div class="brand-mark">✦</div>
         <div>
-          <strong>NexusDoc</strong>
-          <span>Card Workspace</span>
+          <strong>文枢 NexusDoc</strong>
+          <span>AI 文档知识操作系统</span>
         </div>
       </div>
 
@@ -26,11 +26,14 @@
         新建工作台
       </button>
 
-      <div class="sidebar-mini-label">快速开始</div>
+      <div class="sidebar-mini-label">快捷操作</div>
       <div class="quick-actions">
-        <button type="button" @click="createSession">新建</button>
-        <button type="button" @click="applyCommand('summary')">摘要卡</button>
-        <button type="button" @click="applyCommand('mindmap')">结构卡</button>
+        <button type="button" @click="applyCommand('summary')">上传文档</button>
+        <button type="button" @click="focusComposerInput">粘贴文本</button>
+        <button type="button" @click="applyCommand('citation')">网页解析</button>
+        <button type="button" @click="openFolderView">新建文件夹</button>
+        <button type="button" @click="applyCommand('citation')">导入链接</button>
+        <button type="button" @click="openCommandCenter">模板中心</button>
       </div>
 
       <div class="sidebar-section">
@@ -86,6 +89,14 @@
         >
           {{ filter }}
         </button>
+      </div>
+
+      <div class="sidebar-storage">
+        <div>
+          <span>存储空间</span>
+          <strong>2.6 GB / 20 GB</strong>
+        </div>
+        <i><b></b></i>
       </div>
     </aside>
 
@@ -147,15 +158,22 @@
         <div v-else-if="activeMessages.length === 0" class="welcome-panel">
           <section class="hero-stage" aria-labelledby="home-hero-title">
             <div class="hero-copy">
-              <span class="status-pill">AI Card Workspace</span>
-              <p class="hero-kicker">Generative Knowledge Canvas</p>
+              <span class="status-pill">新一代 AI 知识操作系统</span>
+              <p class="hero-kicker">Nexus Knowledge OS</p>
               <h2 id="home-hero-title">
                 让每一份文档，<br />
-                都长成可操作的知识卡片。
+                <span>长成可操作的</span><br />
+                知识卡片。
               </h2>
               <p class="hero-subtitle">
-                上传、总结、提炼、引用、分发。NexusDoc 帮你把文档生成摘要卡、观点卡、引用卡与任务卡。
+                文枢 NexusDoc 将文档理解、结构化知识、可交互卡片与来源引用融为一体，让知识真正为你所用，可问、可查、可推理、可执行。
               </p>
+              <div class="hero-metrics">
+                <div><strong>12,842</strong><span>文档已解析</span></div>
+                <div><strong>86,721</strong><span>知识卡片</span></div>
+                <div><strong>98.6%</strong><span>解析准确率</span></div>
+                <div><strong>1.2s</strong><span>平均生成速度</span></div>
+              </div>
               <div class="hero-actions">
                 <button class="primary-cta" type="button" @click="startProcessing">
                   开始生成卡片
@@ -167,25 +185,47 @@
             </div>
 
             <div class="ocean-stage" aria-hidden="true">
+              <div class="orbit-ring orbit-ring-one"></div>
+              <div class="orbit-ring orbit-ring-two"></div>
+              <div class="orbit-ring orbit-ring-three"></div>
+              <span class="orbit-node node-one"></span>
+              <span class="orbit-node node-two"></span>
+              <span class="orbit-node node-three"></span>
+              <span class="orbit-node node-four"></span>
               <div class="knowledge-core">
-                <span>摘要</span>
+                <span>Core</span>
                 <i></i>
               </div>
-              <div class="stage-card stage-card-main">
-                <small>Summary Card</small>
-                <strong>核心摘要、结论和背景</strong>
-                <span>文档被拆解成可继续操作的模块</span>
+              <div class="orbit-card orbit-summary">
+                <small>摘要卡</small>
+                <strong>提炼核心内容</strong>
+                <span>快速把握文档要点</span>
               </div>
-              <div class="stage-card stage-card-left">
-                <small>Citation Card</small>
-                <strong>来源引用</strong>
+              <div class="orbit-card orbit-insight">
+                <small>观点卡</small>
+                <strong>提取作者观点</strong>
+                <span>形成可讨论的知识视角</span>
               </div>
-              <div class="stage-card stage-card-right">
-                <small>Action Card</small>
-                <strong>任务与风险</strong>
+              <div class="orbit-card orbit-quote">
+                <small>引用卡</small>
+                <strong>定位原文依据</strong>
+                <span>支撑结论与可信度</span>
               </div>
-              <div class="stage-bubble bubble-one"></div>
-              <div class="stage-bubble bubble-two"></div>
+              <div class="orbit-card orbit-action">
+                <small>任务卡</small>
+                <strong>转化行动清单</strong>
+                <span>追踪执行进度</span>
+              </div>
+              <div class="orbit-card orbit-structure">
+                <small>结构卡</small>
+                <strong>识别层级关系</strong>
+                <span>清晰呈现文档结构</span>
+              </div>
+              <div class="orbit-card orbit-source">
+                <small>来源引用</small>
+                <strong>追溯资料来源</strong>
+                <span>保障信息可验证</span>
+              </div>
             </div>
           </section>
 
@@ -207,6 +247,29 @@
               <span>{{ prompt.kicker }}</span>
               <strong>{{ prompt.title }}</strong>
               <small>{{ prompt.description }}</small>
+            </button>
+          </div>
+
+          <div class="workspace-tabs">
+            <button
+              v-for="tab in modeTabs"
+              :key="tab"
+              :class="{ active: activeModeTab === tab }"
+              type="button"
+              @click="activeModeTab = tab"
+            >
+              {{ tab }}
+            </button>
+          </div>
+
+          <div class="suggestion-chips">
+            <button
+              v-for="suggestion in suggestionPrompts"
+              :key="suggestion"
+              type="button"
+              @click="applySuggestion(suggestion)"
+            >
+              {{ suggestion }}
             </button>
           </div>
 
@@ -314,8 +377,13 @@
               </select>
               <label class="web-search-toggle" title="开启后，系统会先搜索网络资料，再结合搜索结果回答。">
                 <input v-model="enableWebSearch" type="checkbox" />
-                <span>联网搜索</span>
+                <span>联网搜索增强</span>
               </label>
+              <select v-model="materialScope" aria-label="资料范围">
+                <option>全部工作台</option>
+                <option>当前工作台</option>
+                <option>收藏档案夹</option>
+              </select>
               <div class="card-type-pills">
                 <button v-for="pill in quickCardPills" :key="pill.label" type="button" @click="applyCommand(pill.command)">
                   {{ pill.label }}
@@ -324,7 +392,7 @@
             </div>
             <button class="send-button" type="button" :disabled="sending || !inputText.trim()" @click="sendMessage">
               <span v-if="sending">生成中</span>
-              <span v-else>生成卡片</span>
+              <span v-else>生成卡片 ✨</span>
             </button>
           </div>
         </div>
@@ -383,7 +451,15 @@ import { ANONYMOUS_USER_ID } from '../config/user';
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
 const DEFAULT_FOLDER = '默认档案夹';
 const folderOptions = ['默认档案夹', '收藏', '项目文档', '小说设定', '会议资料'];
-const cardFilters = ['全部卡片', '摘要卡', '观点卡', '引用卡', '任务卡', '生成卡', '结构卡'];
+const cardFilters = ['全部', '摘要', '观点', '引用', '任务', '结构', '来源'];
+const cardFilterMap = {
+  摘要: '摘要卡',
+  观点: '观点卡',
+  引用: '引用卡',
+  任务: '任务卡',
+  结构: '结构卡',
+  来源: '引用卡'
+};
 const quickCardPills = [
   { label: '摘要卡', command: 'summary' },
   { label: '观点卡', command: 'insight' },
@@ -391,6 +467,13 @@ const quickCardPills = [
   { label: '思维导图', command: 'mindmap' }
 ];
 const skeletonCards = ['正在拆解文档…', '正在生成摘要卡…', '正在提取观点…', '正在整理引用来源…'];
+const modeTabs = ['智能问答', '文档解析', '链接解析', '长文档导入'];
+const suggestionPrompts = [
+  '这篇论文的主要贡献是什么？',
+  '作者的核心观点有哪些？',
+  '对比不同方案的优缺点',
+  '生成一份结构化摘要'
+];
 
 const docTypes = [
   '智能回答',
@@ -404,59 +487,31 @@ const docTypes = [
 ];
 const promptCards = [
   {
-    kicker: 'Summarize',
-    title: '总结这份文档',
-    description: '提炼摘要、背景、结论和可追踪事项',
-    docType: '通用总结',
-    text: '请帮我总结这份文档，输出摘要、核心结论、关键事实和后续行动建议：\n\n'
-  },
-  {
-    kicker: 'Extract',
-    title: '提取重点',
-    description: '按主题整理关键段落与重要信息',
-    docType: '提取重点',
-    text: '请从下面内容中提取重点，并按主题分组整理：\n\n'
-  },
-  {
-    kicker: 'Meeting',
-    title: '生成会议纪要',
-    description: '自动整理议题、决策、负责人和截止时间',
-    docType: '会议纪要',
-    text: '请把下面内容整理成正式会议纪要，包含会议主题、核心讨论、决议事项、负责人和截止时间：\n\n'
-  },
-  {
-    kicker: 'Rewrite',
-    title: '改写为正式公文',
-    description: '提升表达规范度与结构完整度',
-    docType: '正式改写',
-    text: '请把下面内容改写为正式公文风格，语言规范、结构清晰、表达克制：\n\n'
-  },
-  {
     kicker: 'Mind Map',
-    title: '生成思维导图',
-    description: '输出可渲染的节点 JSON，构成文本框式思维导图。',
+    title: '思维导图',
+    description: '将复杂知识梳理成图，一图看懂全局脉络',
     docType: '思维导图',
     text: '请根据下面内容生成思维导图 JSON 数据：\n\n'
   },
   {
     kicker: 'Web Search',
     title: '联网搜索增强',
-    description: '补充原文之外的背景资料，生成带参考来源的回答。',
-    docType: '趋势与隐藏问题分析',
+    description: '补充知识盲点，生成更全面可信的参考资料',
+    docType: '智能回答',
     enableWebSearch: true,
     text: '请开启联网搜索，结合网络资料分析下面内容并列出参考来源：\n\n'
   },
   {
     kicker: 'Novel Forge',
     title: '小说设定生成',
-    description: '构建世界观、人物关系、核心冲突与章节规划。',
+    description: '构建世界观、人物关系与剧情设定，激发创作灵感',
     docType: '小说设定',
     text: '请基于下面设想生成小说设定集，包含世界观、角色、冲突和章节规划：\n\n'
   },
   {
     kicker: 'Insight',
     title: '趋势与隐藏问题分析',
-    description: '发现文档背后的风险、趋势和需要追问的问题。',
+    description: '发现文档背后的风险、趋势与潜在问题',
     docType: '趋势分析',
     text: '请分析下面内容中的隐藏问题、潜在风险和后续趋势：\n\n'
   }
@@ -467,6 +522,8 @@ const activeSessionId = ref('');
 const inputText = ref('');
 const selectedDocType = ref('智能回答');
 const enableWebSearch = ref(false);
+const materialScope = ref('全部工作台');
+const activeModeTab = ref('智能问答');
 const sending = ref(false);
 const sidebarOpen = ref(false);
 const messageViewport = ref(null);
@@ -476,7 +533,7 @@ const selectedFolder = ref(DEFAULT_FOLDER);
 const moveDialogVisible = ref(false);
 const movingSession = ref(null);
 const targetFolder = ref(DEFAULT_FOLDER);
-const activeCardFilter = ref('全部卡片');
+const activeCardFilter = ref('全部');
 const commandCenterOpen = ref(false);
 const commandQuery = ref('');
 const scrollProgress = ref(0);
@@ -501,10 +558,11 @@ const isGeneratingCards = computed(() => Boolean(latestAssistantMessage.value?.l
 const sourceCards = computed(() => extractSources(latestAssistantText.value));
 const generatedCards = computed(() => buildGeneratedCards(latestAssistantText.value, selectedDocType.value));
 const filteredGeneratedCards = computed(() => {
-  if (activeCardFilter.value === '全部卡片') {
+  if (activeCardFilter.value === '全部') {
     return generatedCards.value;
   }
-  return generatedCards.value.filter((card) => card.label === activeCardFilter.value);
+  const targetLabel = cardFilterMap[activeCardFilter.value];
+  return generatedCards.value.filter((card) => card.label === targetLabel);
 });
 const sortedSessions = computed(() => {
   return [...sessions.value].sort((first, second) => {
@@ -649,6 +707,16 @@ function applyPrompt(prompt) {
   nextTick(() => {
     const textarea = document.querySelector('.composer textarea');
     textarea?.focus();
+    resizeComposer({ target: textarea });
+  });
+}
+
+function applySuggestion(suggestion) {
+  inputText.value = suggestion;
+  selectedDocType.value = '智能回答';
+  nextTick(() => {
+    focusComposerInput();
+    const textarea = document.querySelector('.composer textarea');
     resizeComposer({ target: textarea });
   });
 }
@@ -3918,6 +3986,839 @@ async function confirmDeleteSession(session) {
 
   .composer-wrap {
     bottom: 14px;
+  }
+}
+
+/* Dark champagne Knowledge OS layer */
+.nexus-chat-shell {
+  grid-template-columns: 310px minmax(0, 1fr);
+  color: var(--nx-text);
+  background:
+    radial-gradient(circle at 34% 30%, rgba(246, 200, 111, 0.14), transparent 32%),
+    radial-gradient(circle at 78% 34%, rgba(255, 184, 77, 0.12), transparent 28%),
+    linear-gradient(135deg, #05070b 0%, #080b11 48%, #05070b 100%);
+}
+
+.nexus-chat-shell::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 214, 143, 0.08), transparent 38%),
+    radial-gradient(circle at 50% 100%, rgba(0, 0, 0, 0.72), transparent 46%),
+    linear-gradient(90deg, rgba(255, 214, 143, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(255, 214, 143, 0.03) 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
+  mask-image: radial-gradient(circle at 55% 40%, #000 0 46%, transparent 86%);
+}
+
+.nexus-chat-shell::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 18% 25%, rgba(255, 255, 255, 0.26) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 72% 34%, rgba(246, 200, 111, 0.42) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 84% 16%, rgba(255, 255, 255, 0.22) 0 1px, transparent 1.5px);
+  background-size: 210px 180px, 260px 230px, 190px 160px;
+  opacity: 0.22;
+  animation: twinkle 5s ease-in-out infinite;
+}
+
+.aurora,
+.depth-light,
+.ocean-current,
+.floating-artifacts {
+  opacity: 0.22;
+}
+
+.aurora-one,
+.aurora-two,
+.aurora-three {
+  background: rgba(246, 200, 111, 0.16);
+}
+
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(255, 214, 143, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 214, 143, 0.035) 1px, transparent 1px);
+  opacity: 0.64;
+}
+
+.chat-sidebar {
+  gap: 18px;
+  padding: 20px 16px;
+  border-right-color: rgba(255, 214, 143, 0.12);
+  background:
+    linear-gradient(180deg, rgba(8, 10, 14, 0.96), rgba(5, 7, 11, 0.88)),
+    rgba(8, 10, 14, 0.86);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.025);
+}
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  border-color: rgba(255, 214, 143, 0.22);
+  border-radius: 14px;
+  color: #1b1208;
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.56), transparent 30%),
+    linear-gradient(135deg, #f7d28b, #d8932f);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 16px 36px rgba(246, 200, 111, 0.18);
+}
+
+.sidebar-brand strong {
+  color: var(--nx-text);
+  font-size: 16px;
+}
+
+.sidebar-brand span {
+  color: var(--nx-text-muted);
+  font-size: 12px;
+}
+
+.new-chat {
+  min-height: 46px;
+  border-color: rgba(255, 214, 143, 0.28);
+  color: #17100a;
+  font-weight: 760;
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+  box-shadow:
+    0 18px 36px rgba(246, 200, 111, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}
+
+.new-chat:hover {
+  border-color: rgba(255, 226, 174, 0.42);
+  background: linear-gradient(135deg, #fff0c2, #e2a443);
+  box-shadow: 0 20px 44px rgba(246, 200, 111, 0.24);
+}
+
+.sidebar-mini-label,
+.sidebar-section p,
+.sidebar-filter p {
+  color: rgba(247, 241, 230, 0.42);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quick-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 214, 143, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 214, 143, 0.08);
+}
+
+.quick-actions button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 0;
+  color: var(--nx-text-soft);
+  background: rgba(16, 18, 24, 0.78);
+}
+
+.quick-actions button:hover {
+  transform: none;
+  color: var(--nx-gold);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.session-scroll-list::-webkit-scrollbar-thumb,
+.message-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 214, 143, 0.2);
+}
+
+.session-item {
+  min-height: 58px;
+  border-color: rgba(255, 214, 143, 0.08);
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.session-item:hover {
+  transform: translateX(2px);
+  border-color: rgba(255, 214, 143, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.session-item.active {
+  border-color: rgba(255, 214, 143, 0.28);
+  background: rgba(246, 200, 111, 0.08);
+  box-shadow:
+    inset 2px 0 0 rgba(246, 200, 111, 0.72),
+    0 0 22px rgba(246, 200, 111, 0.06);
+}
+
+.pin-badge {
+  color: var(--nx-gold);
+}
+
+.session-more:hover {
+  color: var(--nx-gold);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.sidebar-filter {
+  gap: 8px;
+}
+
+.sidebar-filter button {
+  border-color: rgba(255, 214, 143, 0.1);
+  color: var(--nx-text-muted);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sidebar-filter button:hover,
+.sidebar-filter button.active {
+  color: #1a1208;
+  border-color: rgba(255, 214, 143, 0.4);
+  background: linear-gradient(135deg, #f7d28b, #d8932f);
+}
+
+.sidebar-storage {
+  display: grid;
+  gap: 10px;
+  padding: 2px 4px 0;
+}
+
+.sidebar-storage div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--nx-text-muted);
+  font-size: 12px;
+}
+
+.sidebar-storage strong {
+  color: var(--nx-text-soft);
+  font-size: 12px;
+}
+
+.sidebar-storage i {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.sidebar-storage b {
+  display: block;
+  width: 13%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--nx-gold), var(--nx-gold-2));
+  box-shadow: 0 0 18px rgba(246, 200, 111, 0.38);
+}
+
+.chat-topbar {
+  display: none;
+}
+
+.message-viewport {
+  padding: 24px 38px 190px;
+}
+
+.welcome-panel {
+  max-width: 1320px;
+  gap: 22px;
+  min-height: calc(100vh - 92px);
+  padding: 22px 0 52px;
+}
+
+.hero-stage {
+  grid-template-columns: minmax(480px, 0.9fr) minmax(480px, 1.1fr);
+  gap: 34px;
+  min-height: 548px;
+}
+
+.hero-stage::before {
+  inset: 0 8% 8%;
+  background:
+    radial-gradient(circle at 42% 48%, rgba(246, 200, 111, 0.18), transparent 32%),
+    radial-gradient(circle at 72% 50%, rgba(255, 184, 77, 0.12), transparent 46%);
+  filter: blur(3px);
+}
+
+.status-pill {
+  border-color: rgba(255, 214, 143, 0.22);
+  color: var(--nx-gold);
+  background: rgba(246, 200, 111, 0.1);
+  box-shadow: none;
+}
+
+.hero-kicker {
+  margin: 14px 0 14px;
+  color: var(--nx-text-muted);
+  letter-spacing: 0.12em;
+}
+
+.hero-copy h2 {
+  max-width: 720px;
+  color: var(--nx-text);
+  font-size: clamp(52px, 5.6vw, 92px);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  text-shadow: 0 20px 64px rgba(0, 0, 0, 0.42);
+}
+
+.hero-copy h2 span {
+  color: transparent;
+  background: linear-gradient(92deg, #fff0c2 0%, #f6c86f 45%, #d8932f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 12px 28px rgba(246, 200, 111, 0.18));
+}
+
+.hero-subtitle {
+  max-width: 710px;
+  color: var(--nx-text-soft);
+  font-size: 16px;
+  line-height: 1.78;
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 720px;
+  margin-top: 22px;
+}
+
+.hero-metrics div {
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 214, 143, 0.12);
+  border-radius: 14px;
+  background: rgba(16, 18, 24, 0.58);
+  backdrop-filter: blur(14px);
+}
+
+.hero-metrics strong,
+.source-rail-head strong {
+  display: block;
+  color: var(--nx-gold);
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.hero-metrics span {
+  display: block;
+  margin-top: 4px;
+  color: var(--nx-text-muted);
+  font-size: 12px;
+}
+
+.hero-actions {
+  display: none;
+}
+
+.ocean-stage {
+  position: relative;
+  min-height: 520px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.ocean-stage::before {
+  position: absolute;
+  inset: 8% 5%;
+  border-radius: 50%;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 50%, rgba(246, 200, 111, 0.22), transparent 22%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.08), transparent 42%);
+  filter: blur(2px);
+}
+
+.orbit-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-9deg);
+  animation: orbitRotate 32s linear infinite;
+}
+
+.orbit-ring-one {
+  width: 290px;
+  height: 180px;
+}
+
+.orbit-ring-two {
+  width: 440px;
+  height: 275px;
+  animation-duration: 42s;
+  animation-direction: reverse;
+}
+
+.orbit-ring-three {
+  width: 590px;
+  height: 365px;
+  border-style: dashed;
+  animation-duration: 58s;
+}
+
+.knowledge-core {
+  left: 50%;
+  top: 50%;
+  width: 132px;
+  height: 132px;
+  border-color: rgba(255, 214, 143, 0.34);
+  color: #1a1208;
+  background:
+    radial-gradient(circle at 48% 38%, rgba(255, 255, 255, 0.58), transparent 28%),
+    radial-gradient(circle, #f6c86f 0%, #c47f25 56%, rgba(246, 200, 111, 0.14) 78%);
+  box-shadow:
+    0 0 42px rgba(246, 200, 111, 0.38),
+    0 0 120px rgba(246, 200, 111, 0.18);
+  transform: translate(-50%, -50%);
+  animation: pulseCore 3.6s ease-in-out infinite;
+}
+
+.knowledge-core span {
+  color: #1a1208;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.knowledge-core i {
+  width: 36px;
+  height: 36px;
+  border-color: rgba(26, 18, 8, 0.28);
+  background: rgba(255, 255, 255, 0.38);
+  transform: rotate(45deg);
+}
+
+.orbit-node {
+  position: absolute;
+  z-index: 3;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #ffe8ad;
+  box-shadow: 0 0 18px rgba(246, 200, 111, 0.8);
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+
+.node-one { left: 28%; top: 42%; }
+.node-two { right: 24%; top: 28%; animation-delay: -0.6s; }
+.node-three { right: 18%; bottom: 34%; animation-delay: -1.2s; }
+.node-four { left: 41%; bottom: 23%; animation-delay: -1.8s; }
+
+.orbit-card {
+  position: absolute;
+  z-index: 4;
+  display: grid;
+  gap: 5px;
+  width: 188px;
+  padding: 14px;
+  border: 1px solid rgba(255, 214, 143, 0.18);
+  border-radius: 16px;
+  color: var(--nx-text-soft);
+  background: rgba(20, 22, 28, 0.76);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(18px);
+  animation: floatCard 5s ease-in-out infinite;
+}
+
+.orbit-card::before {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  place-items: center;
+  border-radius: 10px;
+  color: #17100a;
+  background: linear-gradient(135deg, #f8d993, #d8932f);
+  content: "▦";
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.orbit-card small {
+  color: var(--nx-gold);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.orbit-card strong {
+  color: var(--nx-text);
+  font-size: 14px;
+}
+
+.orbit-card span {
+  color: var(--nx-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.orbit-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(255, 214, 143, 0.38);
+  background: rgba(26, 28, 35, 0.88);
+}
+
+.orbit-summary { left: 38%; top: 3%; animation-delay: -0.2s; }
+.orbit-insight { right: 3%; top: 10%; animation-delay: -0.9s; }
+.orbit-quote { right: 1%; top: 39%; animation-delay: -1.6s; }
+.orbit-action { right: 13%; bottom: 4%; animation-delay: -2.1s; }
+.orbit-structure { left: 12%; top: 40%; animation-delay: -2.7s; }
+.orbit-source { left: 43%; bottom: 2%; animation-delay: -3.2s; }
+
+.orbit-insight::before { content: "☷"; background: linear-gradient(135deg, #9bc2ff, #4a78d8); color: #06101f; }
+.orbit-quote::before { content: "❝"; background: linear-gradient(135deg, #d8bdff, #8c5bd6); color: #12071f; }
+.orbit-action::before { content: "✓"; background: linear-gradient(135deg, #ffca86, #d8782e); }
+.orbit-structure::before { content: "▣"; background: linear-gradient(135deg, #ffe8a5, #c99324); }
+.orbit-source::before { content: "↗"; background: linear-gradient(135deg, #9cebd5, #31a883); }
+
+.section-heading {
+  display: none;
+}
+
+.prompt-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.prompt-card {
+  min-height: 132px;
+  border: 1px solid rgba(255, 214, 143, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(246, 200, 111, 0.16), transparent 36%),
+    rgba(16, 18, 24, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.prompt-card:hover {
+  border-color: rgba(255, 214, 143, 0.3);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(246, 200, 111, 0.22), transparent 38%),
+    rgba(23, 25, 32, 0.9);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.prompt-card span {
+  color: var(--nx-gold);
+}
+
+.prompt-card strong {
+  color: var(--nx-text);
+}
+
+.prompt-card small {
+  color: var(--nx-text-soft);
+}
+
+.workspace-tabs,
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workspace-tabs {
+  margin-top: -4px;
+  padding: 12px;
+  border: 1px solid rgba(255, 214, 143, 0.1);
+  border-radius: 18px;
+  background: rgba(16, 18, 24, 0.58);
+}
+
+.workspace-tabs button,
+.suggestion-chips button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 214, 143, 0.1);
+  border-radius: 999px;
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.workspace-tabs button.active,
+.workspace-tabs button:hover,
+.suggestion-chips button:hover {
+  color: var(--nx-gold);
+  border-color: rgba(255, 214, 143, 0.28);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.mindmap-preview {
+  display: none;
+}
+
+.composer-wrap {
+  left: calc(310px + 38px);
+  right: 38px;
+  bottom: 22px;
+  z-index: 30;
+}
+
+.composer {
+  border: 1px solid rgba(255, 214, 143, 0.26);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 18%, rgba(246, 200, 111, 0.14), transparent 34%),
+    rgba(13, 15, 20, 0.9);
+  box-shadow:
+    0 24px 74px rgba(0, 0, 0, 0.46),
+    0 0 50px rgba(246, 200, 111, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(22px);
+}
+
+.composer:focus-within {
+  border-color: rgba(255, 214, 143, 0.48);
+  background:
+    radial-gradient(circle at 90% 18%, rgba(246, 200, 111, 0.18), transparent 34%),
+    rgba(13, 15, 20, 0.94);
+  box-shadow:
+    0 26px 82px rgba(0, 0, 0, 0.5),
+    0 0 60px rgba(246, 200, 111, 0.15);
+}
+
+.composer textarea {
+  min-height: 54px;
+  color: var(--nx-text);
+  background: transparent;
+}
+
+.composer textarea::placeholder {
+  color: var(--nx-text-muted);
+}
+
+.composer select,
+.web-search-toggle,
+.card-type-pills button {
+  min-height: 34px;
+  border-color: rgba(255, 214, 143, 0.14);
+  border-radius: 12px;
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.web-search-toggle:has(input:checked) {
+  color: var(--nx-gold);
+  border-color: rgba(255, 214, 143, 0.34);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.card-type-pills button:hover {
+  color: var(--nx-gold);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.send-button {
+  min-height: 42px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 14px;
+  color: #17100a;
+  font-weight: 820;
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+  box-shadow: 0 18px 38px rgba(246, 200, 111, 0.18);
+}
+
+.send-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fff0c2, #e2a443);
+}
+
+.send-button:disabled {
+  color: rgba(247, 241, 230, 0.32);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+.workspace-brief,
+.knowledge-card,
+.citation-card,
+.raw-response,
+.folder-hero,
+.folder-card,
+.folder-docs,
+.command-center {
+  border-color: rgba(255, 214, 143, 0.14);
+  color: var(--nx-text-soft);
+  background: rgba(16, 18, 24, 0.76);
+  box-shadow: var(--nx-shadow-card);
+  backdrop-filter: blur(18px);
+}
+
+.workspace-brief h2,
+.knowledge-card h3,
+.citation-card strong,
+.folder-hero h2,
+.folder-docs h3,
+.raw-response summary {
+  color: var(--nx-text);
+}
+
+.card-head span,
+.source-rail-head span {
+  color: var(--nx-gold);
+}
+
+.card-actions button,
+.source-chips button,
+.citation-card a {
+  border-color: rgba(255, 214, 143, 0.16);
+  color: var(--nx-gold);
+  background: rgba(246, 200, 111, 0.08);
+}
+
+.command-overlay {
+  background: rgba(5, 7, 11, 0.62);
+}
+
+.command-search span,
+.command-list button > span {
+  color: #17100a;
+  background: linear-gradient(135deg, #f6c86f, #d89531);
+}
+
+.command-search input {
+  color: var(--nx-text);
+}
+
+.command-list button {
+  color: var(--nx-text-soft);
+}
+
+.command-list button:hover {
+  background: rgba(246, 200, 111, 0.1);
+}
+
+@keyframes orbitRotate {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes pulseCore {
+  0%,
+  100% {
+    box-shadow: 0 0 42px rgba(246, 200, 111, 0.34), 0 0 120px rgba(246, 200, 111, 0.16);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 62px rgba(246, 200, 111, 0.58), 0 0 150px rgba(246, 200, 111, 0.24);
+    transform: translate(-50%, -50%) scale(1.035);
+  }
+}
+
+@keyframes floatCard {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -10px;
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1280px) {
+  .hero-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .ocean-stage {
+    min-height: 470px;
+  }
+
+  .prompt-grid,
+  .hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .nexus-chat-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    position: absolute;
+    z-index: 50;
+    width: min(310px, 86vw);
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+  }
+
+  .chat-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .chat-topbar {
+    display: flex;
+  }
+
+  .composer-wrap {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .message-viewport {
+    padding: 16px 16px 188px;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero-copy h2 {
+    font-size: clamp(40px, 13vw, 58px);
+  }
+
+  .hero-metrics,
+  .prompt-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ocean-stage {
+    display: none;
+  }
+
+  .composer-tools,
+  .composer-left-tools {
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-ring,
+  .knowledge-core,
+  .orbit-card,
+  .orbit-node,
+  .nexus-chat-shell::after {
+    animation: none !important;
   }
 }
 </style>
