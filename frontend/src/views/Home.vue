@@ -19,7 +19,7 @@
         <div class="brand-mark">文</div>
         <div>
           <strong>NexusDoc</strong>
-          <span>文档知识中枢</span>
+          <span>Knowledge OS</span>
         </div>
       </div>
 
@@ -30,34 +30,42 @@
 
       <div class="sidebar-section">
         <p>最近会话</p>
-        <div v-if="sortedSessions.length === 0" class="session-empty">
-          暂无会话，点击“新建对话”开始处理文档。
-        </div>
-        <div
-          v-for="session in sortedSessions"
-          :key="session.id"
-          :class="['session-item', { active: session.id === activeSessionId }]"
-          @click="switchSession(session.id)"
-        >
-          <div class="session-head">
-            <span class="session-title">{{ session.title }}</span>
-            <span v-if="session.pinned" class="pin-badge">置顶</span>
-            <el-dropdown trigger="click" @command="(command) => handleSessionCommand(command, session)">
-              <button class="session-more" type="button" @click.stop>⋯</button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item :command="session.pinned ? 'unpin' : 'pin'">
-                    {{ session.pinned ? '取消置顶' : '置顶' }}
-                  </el-dropdown-item>
-                  <el-dropdown-item command="move">移动到档案夹</el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+        <div class="session-scroll-list">
+          <div v-if="sortedSessions.length === 0" class="session-empty">
+            暂无会话，点击“新建对话”开始处理文档。
           </div>
-          <div class="session-foot">
-            <span class="session-meta">{{ session.updatedAt }}</span>
-            <span class="folder-chip">{{ session.folderName || DEFAULT_FOLDER }}</span>
+          <div
+            v-for="session in sortedSessions"
+            :key="session.id"
+            :class="['session-item', { active: session.id === activeSessionId }]"
+            @click="switchSession(session.id)"
+          >
+            <div class="session-head">
+              <span class="session-title">{{ session.title }}</span>
+              <el-dropdown
+                trigger="click"
+                popper-class="nexus-dropdown"
+                @command="(command) => handleSessionCommand(command, session)"
+              >
+                <button class="session-more" type="button" @click.stop>⋯</button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item :command="session.pinned ? 'unpin' : 'pin'">
+                      {{ session.pinned ? '取消置顶' : '置顶' }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="move">移动到档案夹</el-dropdown-item>
+                    <el-dropdown-item class="danger" command="delete" divided>删除</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+            <div class="session-foot">
+              <span v-if="session.isDraft" class="draft-badge">Draft</span>
+              <span v-else-if="session.pinned" class="pin-badge">Pinned</span>
+              <span class="session-meta">{{ session.updatedAt }}</span>
+              <span class="meta-dot">·</span>
+              <span class="folder-chip">{{ session.isDraft ? '未发送' : (session.folderName || DEFAULT_FOLDER) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -70,32 +78,10 @@
           <p class="eyebrow">NexusDoc / 文枢</p>
           <h1>让每一份文档，都成为可对话的知识。</h1>
         </div>
-        <div class="topbar-actions">
+        <div v-if="aiConfig && !aiConfig.apiKeyConfigured" class="topbar-actions">
           <span v-if="aiConfig && !aiConfig.apiKeyConfigured" class="config-warning">
             后端未配置 AI Key
           </span>
-          <button
-            :class="['nav-action', { active: activeNav === 'home' }]"
-            type="button"
-            @click="goWorkspaceHome"
-          >
-            主页
-          </button>
-          <button
-            :class="['nav-action', { active: activeNav === 'chat' }]"
-            type="button"
-            @click="goAiChat"
-          >
-            AI 对话
-          </button>
-          <button
-            :class="['nav-action', { active: activeNav === 'folders' }]"
-            type="button"
-            @click="openFolderView"
-          >
-            档案夹
-          </button>
-          <button class="nav-action" type="button" @click="$router.push('/history')">历史记录</button>
         </div>
       </header>
 
@@ -293,7 +279,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
 import { generateDocument } from '../api/document';
@@ -304,16 +291,14 @@ const DEFAULT_FOLDER = '默认档案夹';
 const folderOptions = ['默认档案夹', '学习资料', '项目文档', '小说设定', '政策合同'];
 
 const docTypes = [
+  '智能回答',
   '通用总结',
   '会议纪要',
-  '工作任务',
-  '学习资料',
-  '政策公告',
-  '合同初读',
-  '内容创作',
+  '提取重点',
+  '正式改写',
   '思维导图',
   '小说设定',
-  '趋势与隐藏问题分析'
+  '趋势分析'
 ];
 const promptCards = [
   {
@@ -327,7 +312,7 @@ const promptCards = [
     kicker: 'Extract',
     title: '提取重点',
     description: '按主题整理关键段落与重要信息',
-    docType: '通用总结',
+    docType: '提取重点',
     text: '请从下面内容中提取重点，并按主题分组整理：\n\n'
   },
   {
@@ -341,7 +326,7 @@ const promptCards = [
     kicker: 'Rewrite',
     title: '改写为正式公文',
     description: '提升表达规范度与结构完整度',
-    docType: '政策公告',
+    docType: '正式改写',
     text: '请把下面内容改写为正式公文风格，语言规范、结构清晰、表达克制：\n\n'
   },
   {
@@ -370,7 +355,7 @@ const promptCards = [
     kicker: 'Insight',
     title: '趋势与隐藏问题分析',
     description: '发现文档背后的风险、趋势和需要追问的问题。',
-    docType: '趋势与隐藏问题分析',
+    docType: '趋势分析',
     text: '请分析下面内容中的隐藏问题、潜在风险和后续趋势：\n\n'
   }
 ];
@@ -378,7 +363,7 @@ const promptCards = [
 const sessions = ref([]);
 const activeSessionId = ref('');
 const inputText = ref('');
-const selectedDocType = ref('通用总结');
+const selectedDocType = ref('智能回答');
 const enableWebSearch = ref(false);
 const sending = ref(false);
 const sidebarOpen = ref(false);
@@ -392,6 +377,8 @@ const targetFolder = ref(DEFAULT_FOLDER);
 const scrollProgress = ref(0);
 const featureCards = ref([]);
 const visibleCards = ref([]);
+const route = useRoute();
+const router = useRouter();
 
 let scrollFrame = 0;
 let featureObserver = null;
@@ -402,6 +389,9 @@ const sortedSessions = computed(() => {
   return [...sessions.value].sort((first, second) => {
     if (Boolean(first.pinned) !== Boolean(second.pinned)) {
       return first.pinned ? -1 : 1;
+    }
+    if (Boolean(first.isDraft) !== Boolean(second.isDraft)) {
+      return first.isDraft ? -1 : 1;
     }
     return getSessionTime(second) - getSessionTime(first);
   });
@@ -423,6 +413,7 @@ const folderSessions = computed(() => {
 
 onMounted(async () => {
   restoreSessions();
+  syncActiveNavFromRoute(route.query.view);
   await loadAiConfig();
   await nextTick();
   initMotionEffects();
@@ -437,14 +428,21 @@ onUnmounted(() => {
   teardownMotionEffects();
 });
 
+watch(
+  () => route.query.view,
+  (view) => {
+    syncActiveNavFromRoute(view);
+  }
+);
+
 async function loadAiConfig() {
   aiConfig.value = await getAiConfig();
 }
 
 function restoreSessions() {
   const cached = localStorage.getItem(SESSION_STORAGE_KEY);
-  sessions.value = cached ? JSON.parse(cached).map(normalizeSession) : [createSessionData('新文档对话')];
-  let homeSession = sessions.value.find((session) => session.messages.length === 0);
+  sessions.value = sanitizeSessions(cached ? JSON.parse(cached).map(normalizeSession) : []);
+  let homeSession = sessions.value.find(isBlankDraftSession);
   if (!homeSession) {
     homeSession = createSessionData('新文档对话');
     sessions.value.unshift(homeSession);
@@ -454,15 +452,19 @@ function restoreSessions() {
 }
 
 function persistSessions() {
+  sessions.value = sanitizeSessions(sessions.value);
   localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions.value));
 }
 
 function createSessionData(title) {
+  const now = Date.now();
   return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    id: `draft-${now}-${Math.random().toString(16).slice(2)}`,
     title,
     updatedAt: formatSessionTime(),
-    updatedAtValue: Date.now(),
+    updatedAtValue: now,
+    createdAtValue: now,
+    isDraft: true,
     pinned: false,
     pinnedTime: null,
     folderName: DEFAULT_FOLDER,
@@ -471,19 +473,26 @@ function createSessionData(title) {
 }
 
 function createSession() {
-  const session = createSessionData('新文档对话');
-  sessions.value.unshift(session);
+  const existingDraft = sessions.value.find(isBlankDraftSession);
+  const session = existingDraft || createSessionData('新文档对话');
+  moveSessionToTop(session.id);
+  if (!existingDraft) {
+    sessions.value.unshift(session);
+  }
   activeSessionId.value = session.id;
   inputText.value = '';
   sidebarOpen.value = false;
   activeNav.value = 'home';
+  replaceWorkspaceView('home');
   persistSessions();
+  nextTick(focusComposerInput);
 }
 
 function switchSession(sessionId) {
   activeSessionId.value = sessionId;
   sidebarOpen.value = false;
   activeNav.value = 'chat';
+  replaceWorkspaceView('chat');
   nextTick(scrollToBottom);
 }
 
@@ -589,10 +598,19 @@ async function sendMessage() {
     return;
   }
 
-  const session = activeSession.value;
+  let session = activeSession.value;
+  if (!session) {
+    session = createSessionData('新文档对话');
+    sessions.value.unshift(session);
+    activeSessionId.value = session.id;
+  }
   activeNav.value = 'chat';
+  replaceWorkspaceView('chat');
   const userMessage = createMessage('user', content);
   const assistantMessage = createMessage('assistant', '', true);
+  if (session.isDraft) {
+    session.isDraft = false;
+  }
   session.messages.push(userMessage, assistantMessage);
   session.title = buildSessionTitle(content);
   session.updatedAt = formatSessionTime();
@@ -684,7 +702,11 @@ function scrollToTop() {
 }
 
 function buildSessionTitle(content) {
-  return content.replace(/\s+/g, ' ').slice(0, 18) || '新文档对话';
+  const text = content.trim().replace(/\s+/g, ' ');
+  if (!text) {
+    return '新文档对话';
+  }
+  return text.length > 18 ? `${text.slice(0, 18)}...` : text;
 }
 
 function formatSessionTime(date = new Date()) {
@@ -696,15 +718,54 @@ function wait(ms) {
 }
 
 function normalizeSession(session) {
+  const messages = Array.isArray(session.messages) ? session.messages : [];
+  const isDraft = session.isDraft === true || (messages.length === 0 && session.title === '新文档对话');
   return {
     ...session,
     updatedAt: session.updatedAt || formatSessionTime(),
     updatedAtValue: session.updatedAtValue || Date.now(),
+    createdAtValue: session.createdAtValue || session.updatedAtValue || Date.now(),
+    isDraft,
     pinned: Boolean(session.pinned),
     pinnedTime: session.pinnedTime || null,
     folderName: session.folderName || DEFAULT_FOLDER,
-    messages: Array.isArray(session.messages) ? session.messages : []
+    messages
   };
+}
+
+function sanitizeSessions(items) {
+  const cleaned = [];
+  let draftKept = false;
+  for (const session of items) {
+    if (isBlankDraftSession(session)) {
+      if (draftKept) {
+        continue;
+      }
+      draftKept = true;
+    }
+    cleaned.push(session);
+  }
+  return cleaned;
+}
+
+function isBlankDraftSession(session) {
+  return Boolean(session?.isDraft)
+    && session.title === '新文档对话'
+    && (!session.messages || session.messages.length === 0);
+}
+
+function moveSessionToTop(sessionId) {
+  const index = sessions.value.findIndex((session) => session.id === sessionId);
+  if (index <= 0) {
+    return;
+  }
+  const [session] = sessions.value.splice(index, 1);
+  sessions.value.unshift(session);
+}
+
+function focusComposerInput() {
+  const textarea = document.querySelector('.composer textarea');
+  textarea?.focus();
 }
 
 function getSessionTime(session) {
@@ -712,8 +773,14 @@ function getSessionTime(session) {
 }
 
 function goWorkspaceHome() {
-  const emptySession = sortedSessions.value.find((session) => session.messages.length === 0);
+  activateWorkspaceHome();
+  replaceWorkspaceView('home');
+}
+
+function activateWorkspaceHome() {
+  const emptySession = sortedSessions.value.find(isBlankDraftSession);
   if (emptySession) {
+    moveSessionToTop(emptySession.id);
     activeSessionId.value = emptySession.id;
   } else {
     const session = createSessionData('新文档对话');
@@ -728,18 +795,44 @@ function goWorkspaceHome() {
 
 function goAiChat() {
   activeNav.value = 'chat';
+  replaceWorkspaceView('chat');
   nextTick(scrollToBottom);
 }
 
 function openFolderView() {
   activeNav.value = 'folders';
   sidebarOpen.value = false;
+  replaceWorkspaceView('folders');
 }
 
 function openFolderSession(sessionId) {
   activeSessionId.value = sessionId;
   activeNav.value = 'chat';
+  replaceWorkspaceView('chat');
   nextTick(scrollToBottom);
+}
+
+function syncActiveNavFromRoute(view) {
+  if (view === 'folders') {
+    activeNav.value = 'folders';
+    sidebarOpen.value = false;
+    nextTick(scrollToTop);
+    return;
+  }
+  if (view === 'chat') {
+    activeNav.value = 'chat';
+    nextTick(scrollToBottom);
+    return;
+  }
+  activateWorkspaceHome();
+}
+
+function replaceWorkspaceView(view) {
+  if (route.path !== '/') {
+    return;
+  }
+  const query = view === 'home' ? {} : { view };
+  router.replace({ path: '/', query });
 }
 
 function handleSessionCommand(command, session) {
@@ -816,8 +909,9 @@ async function confirmDeleteSession(session) {
 .nexus-chat-shell {
   position: relative;
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
-  min-height: calc(100vh - 65px);
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   color: #e5eefc;
   background:
@@ -977,30 +1071,40 @@ async function confirmDeleteSession(session) {
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 24px;
-  border-right: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(6, 12, 27, 0.72);
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 22px 18px;
+  border-right: 1px solid rgba(148, 163, 184, 0.12);
+  background:
+    linear-gradient(180deg, rgba(8, 13, 28, 0.86), rgba(7, 11, 24, 0.76)),
+    rgba(6, 12, 27, 0.72);
   backdrop-filter: blur(24px);
   animation: enterFromLeft 560ms ease both;
 }
 
 .sidebar-brand {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
+  min-height: 38px;
 }
 
 .brand-mark {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   place-items: center;
-  border: 1px solid rgba(125, 211, 252, 0.4);
-  border-radius: 14px;
-  color: #f8fbff;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.85), rgba(45, 212, 191, 0.42));
-  box-shadow: 0 16px 40px rgba(37, 99, 235, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 10px;
+  color: rgba(248, 250, 252, 0.94);
+  font-size: 15px;
+  font-weight: 700;
+  background:
+    linear-gradient(135deg, rgba(96, 165, 250, 0.2), rgba(34, 211, 238, 0.08)),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .sidebar-brand strong,
@@ -1009,13 +1113,16 @@ async function confirmDeleteSession(session) {
 }
 
 .sidebar-brand strong {
-  font-size: 17px;
+  color: rgba(248, 250, 252, 0.94);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.25;
 }
 
 .sidebar-brand span,
 .sidebar-section p,
 .session-meta {
-  color: #91a3bd;
+  color: rgba(148, 163, 184, 0.66);
   font-size: 12px;
 }
 
@@ -1039,52 +1146,112 @@ async function confirmDeleteSession(session) {
   gap: 10px;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
-  border: 1px solid rgba(125, 211, 252, 0.28);
-  border-radius: 14px;
-  color: #e8f3ff;
-  background: rgba(15, 23, 42, 0.74);
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(248, 250, 252, 0.88);
+  font-size: 14px;
+  font-weight: 560;
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .new-chat:hover,
 .ghost-action:hover,
 .send-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 18px 42px rgba(59, 130, 246, 0.28);
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
 }
 
 .sidebar-section {
-  display: grid;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sidebar-section p {
+  flex-shrink: 0;
+  margin: 6px 0 0;
+  color: rgba(148, 163, 184, 0.48);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-scroll-list {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.session-scroll-list::-webkit-scrollbar,
+.message-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+
+.session-scroll-list::-webkit-scrollbar-track,
+.message-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.session-scroll-list::-webkit-scrollbar-thumb,
+.message-viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(120, 180, 255, 0.24);
+}
+
+.session-scroll-list:hover::-webkit-scrollbar-thumb,
+.message-viewport:hover::-webkit-scrollbar-thumb {
+  background: rgba(120, 180, 255, 0.38);
 }
 
 .session-item {
+  position: relative;
   display: grid;
-  gap: 6px;
+  gap: 5px;
   width: 100%;
-  padding: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.13);
-  border-radius: 16px;
-  color: #dce7f7;
+  min-height: 62px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: rgba(226, 232, 240, 0.9);
   text-align: left;
-  background: rgba(15, 23, 42, 0.38);
+  background: transparent;
 }
 
 .session-item:hover,
 .session-item.active {
-  transform: translateX(4px);
-  border-color: rgba(96, 165, 250, 0.46);
-  background: rgba(37, 99, 235, 0.18);
+  transform: none;
+}
+
+.session-item:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.session-item.active {
+  border-color: rgba(96, 165, 250, 0.14);
+  background: rgba(96, 165, 250, 0.1);
+  box-shadow: inset 2px 0 0 rgba(34, 211, 238, 0.72);
 }
 
 .session-empty {
-  padding: 14px;
-  border: 1px dashed rgba(148, 163, 184, 0.2);
-  border-radius: 16px;
-  color: #91a3bd;
+  padding: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.14);
+  border-radius: 12px;
+  color: rgba(148, 163, 184, 0.66);
   font-size: 13px;
   line-height: 1.6;
-  background: rgba(15, 23, 42, 0.24);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .session-head,
@@ -1099,7 +1266,9 @@ async function confirmDeleteSession(session) {
 }
 
 .session-foot {
-  justify-content: space-between;
+  flex-wrap: nowrap;
+  color: rgba(148, 163, 184, 0.58);
+  font-size: 11px;
 }
 
 .session-title {
@@ -1108,31 +1277,38 @@ async function confirmDeleteSession(session) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 560;
 }
 
+.draft-badge,
 .pin-badge,
 .folder-chip {
   flex: 0 0 auto;
-  border-radius: 999px;
   font-size: 11px;
   line-height: 1;
 }
 
+.draft-badge {
+  color: rgba(203, 213, 225, 0.6);
+  font-weight: 650;
+}
+
 .pin-badge {
-  padding: 5px 7px;
-  color: #a5f3fc;
-  background: rgba(14, 165, 233, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(103, 232, 249, 0.2);
+  color: rgba(103, 232, 249, 0.84);
+  font-weight: 650;
 }
 
 .folder-chip {
-  max-width: 92px;
-  padding: 4px 7px;
+  max-width: 112px;
   overflow: hidden;
-  color: #b7c5dc;
+  color: rgba(148, 163, 184, 0.62);
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: rgba(148, 163, 184, 0.12);
+}
+
+.meta-dot {
+  color: rgba(148, 163, 184, 0.42);
 }
 
 .session-more {
@@ -1141,49 +1317,62 @@ async function confirmDeleteSession(session) {
   width: 28px;
   height: 28px;
   place-items: center;
-  border-radius: 10px;
-  color: #b7c5dc;
-  background: rgba(15, 23, 42, 0.5);
+  border-radius: 8px;
+  color: rgba(203, 213, 225, 0.42);
+  background: transparent;
 }
 
 .session-more:hover {
-  color: #e5eefc;
-  background: rgba(59, 130, 246, 0.22);
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .chat-main {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
   animation: enterSoft 640ms ease both;
 }
 
 .chat-topbar {
+  position: relative;
+  z-index: 20;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 26px 34px 18px;
+  gap: 18px;
+  padding: 18px 34px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  background: linear-gradient(180deg, rgba(7, 11, 24, 0.64), rgba(7, 11, 24, 0));
 }
 
 .sidebar-toggle {
   display: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.72);
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 10px;
+  color: rgba(226, 232, 240, 0.78);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .eyebrow {
-  margin: 0 0 8px;
-  color: #67e8f9;
-  font-weight: 700;
+  margin: 0 0 5px;
+  color: rgba(103, 232, 249, 0.74);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .chat-topbar h1 {
   margin: 0;
-  font-size: clamp(22px, 3vw, 34px);
+  color: rgba(248, 250, 252, 0.92);
+  font-size: 24px;
+  font-weight: 680;
   letter-spacing: 0;
 }
 
@@ -1191,19 +1380,28 @@ async function confirmDeleteSession(session) {
 .dialog-actions,
 .composer-tools {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
+}
+
+.topbar-actions {
+  padding: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(18px);
 }
 
 .config-warning {
   display: inline-flex;
   align-items: center;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 30px;
+  padding: 0 10px;
   border: 1px solid rgba(248, 113, 113, 0.32);
   border-radius: 999px;
   color: #fecaca;
-  font-size: 13px;
+  font-size: 12px;
   background: rgba(127, 29, 29, 0.26);
   box-shadow: 0 0 26px rgba(248, 113, 113, 0.12);
 }
@@ -1218,18 +1416,24 @@ async function confirmDeleteSession(session) {
 }
 
 .nav-action {
-  min-height: 38px;
-  padding: 0 13px;
-  border-radius: 12px;
-  color: #aebed2;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 10px;
+  color: rgba(203, 213, 225, 0.66);
+  font-size: 13px;
+  font-weight: 560;
   background: transparent;
 }
 
 .nav-action:hover,
 .nav-action.active {
-  color: #e8f8ff;
-  background: rgba(14, 165, 233, 0.13);
-  box-shadow: 0 0 28px rgba(14, 165, 233, 0.12);
+  color: rgba(248, 250, 252, 0.94);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: none;
+}
+
+.nav-action.active {
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.12);
 }
 
 .ghost-action.warning {
@@ -1238,21 +1442,12 @@ async function confirmDeleteSession(session) {
 }
 
 .message-viewport {
+  flex: 1;
   min-height: 0;
-  padding: 8px 34px 22px;
+  padding: 8px 34px 188px;
+  overflow-x: hidden;
   overflow-y: auto;
   scroll-behavior: smooth;
-}
-
-.message-viewport::-webkit-scrollbar {
-  width: 10px;
-}
-
-.message-viewport::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.44);
-  background-clip: content-box;
 }
 
 .welcome-panel {
@@ -1823,7 +2018,7 @@ async function confirmDeleteSession(session) {
   gap: 18px;
   max-width: 930px;
   margin: 0 auto;
-  padding: 18px 0 40px;
+  padding: 18px 0 24px;
 }
 
 .message-row {
@@ -1896,32 +2091,49 @@ async function confirmDeleteSession(session) {
 }
 
 .composer-wrap {
-  padding: 14px 34px 28px;
+  position: absolute;
+  right: 34px;
+  bottom: 28px;
+  left: 34px;
+  z-index: 30;
+  padding: 0;
+  pointer-events: none;
 }
 
 .composer {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   max-width: 930px;
   margin: 0 auto;
-  padding: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 24px;
-  background: rgba(15, 23, 42, 0.72);
-  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.38);
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(10, 17, 34, 0.76)),
+    rgba(15, 23, 42, 0.72);
+  box-shadow:
+    0 18px 54px rgba(2, 6, 23, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(24px);
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  pointer-events: auto;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
 .composer:focus-within {
-  border-color: rgba(103, 232, 249, 0.58);
-  box-shadow: 0 28px 80px rgba(14, 165, 233, 0.24);
+  border-color: rgba(125, 211, 252, 0.32);
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(10, 17, 34, 0.82)),
+    rgba(15, 23, 42, 0.8);
+  box-shadow:
+    0 22px 64px rgba(2, 6, 23, 0.46),
+    0 0 0 1px rgba(34, 211, 238, 0.08);
 }
 
 .composer textarea {
   width: 100%;
-  min-height: 48px;
+  min-height: 44px;
   max-height: 180px;
+  padding: 2px 2px 0;
   resize: none;
   border: 0;
   outline: 0;
@@ -1932,11 +2144,12 @@ async function confirmDeleteSession(session) {
 }
 
 .composer textarea::placeholder {
-  color: #7f91aa;
+  color: rgba(148, 163, 184, 0.56);
 }
 
 .composer-tools {
   justify-content: space-between;
+  padding-top: 2px;
 }
 
 .composer-left-tools {
@@ -1947,46 +2160,49 @@ async function confirmDeleteSession(session) {
 }
 
 .composer select {
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  color: #dce7f7;
-  background: rgba(15, 23, 42, 0.84);
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 10px;
+  color: rgba(226, 232, 240, 0.86);
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .web-search-toggle {
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  color: #b7c5dc;
-  background: rgba(15, 23, 42, 0.6);
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 10px;
+  color: rgba(203, 213, 225, 0.7);
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
   transition: border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
 }
 
 .web-search-toggle:hover,
 .web-search-toggle:has(input:checked) {
-  color: #a5f3fc;
-  border-color: rgba(103, 232, 249, 0.44);
-  box-shadow: 0 0 26px rgba(14, 165, 233, 0.12);
+  color: rgba(165, 243, 252, 0.9);
+  border-color: rgba(103, 232, 249, 0.24);
+  box-shadow: none;
 }
 
 .web-search-toggle input {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   accent-color: #22d3ee;
 }
 
 .send-button {
-  min-height: 40px;
-  min-width: 92px;
-  border-radius: 14px;
+  min-height: 36px;
+  min-width: 84px;
+  border-radius: 11px;
   color: #06101f;
+  font-size: 13px;
   font-weight: 700;
   background: linear-gradient(135deg, #67e8f9, #60a5fa);
 }
@@ -2166,7 +2382,8 @@ async function confirmDeleteSession(session) {
   .chat-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    width: 292px;
+    width: 300px;
+    z-index: 40;
     transform: translateX(-105%);
     transition: transform 220ms ease;
   }
@@ -2209,10 +2426,19 @@ async function confirmDeleteSession(session) {
 
 @media (max-width: 640px) {
   .chat-topbar,
-  .message-viewport,
-  .composer-wrap {
+  .message-viewport {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .message-viewport {
+    padding-bottom: 178px;
+  }
+
+  .composer-wrap {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
   }
 
   .chat-topbar {

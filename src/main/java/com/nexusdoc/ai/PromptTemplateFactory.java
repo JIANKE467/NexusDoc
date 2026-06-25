@@ -1,11 +1,15 @@
 package com.nexusdoc.ai;
 
-import com.nexusdoc.enums.DocumentTypeEnum;
 import com.nexusdoc.vo.WebSearchResultVO;
 
 import java.util.List;
 
 public final class PromptTemplateFactory {
+
+    private static final String FREE_CHAT = "智能回答";
+    private static final String GENERAL_SUMMARY = "通用总结";
+    private static final String MIND_MAP = "思维导图";
+    private static final String TREND_ANALYSIS = "趋势与隐藏问题分析";
 
     private PromptTemplateFactory() {
     }
@@ -17,6 +21,144 @@ public final class PromptTemplateFactory {
     public static String buildDocumentPrompt(String docType, String content,
                                              boolean webSearchAttempted,
                                              List<WebSearchResultVO> searchResults) {
+        String normalizedType = normalizeDocType(docType);
+        String trimmedContent = content == null ? "" : content.trim();
+        if (isMindMapMode(normalizedType, trimmedContent)) {
+            return buildMindMapPrompt(trimmedContent, webSearchAttempted, searchResults);
+        }
+        if (isTrendMode(normalizedType, trimmedContent)) {
+            return buildTrendPrompt(trimmedContent, webSearchAttempted, searchResults);
+        }
+        if (isStructuredDocumentMode(normalizedType) && !isCreativeIntent(trimmedContent)) {
+            return buildStructuredDocumentPrompt(normalizedType, trimmedContent,
+                    webSearchAttempted, searchResults);
+        }
+        if (isCreativeMode(normalizedType) || isCreativeIntent(trimmedContent)) {
+            return buildCreativePrompt(trimmedContent, webSearchAttempted, searchResults);
+        }
+        if (isGeneralSummaryMode(normalizedType) && isSummaryIntent(trimmedContent)) {
+            return buildSummaryPrompt(trimmedContent, webSearchAttempted, searchResults);
+        }
+        return buildFreeChatPrompt(trimmedContent, webSearchAttempted, searchResults);
+    }
+
+    public static String buildAskPrompt(String documentContent, String generatedResult, String question) {
+        return buildAskPrompt(documentContent, generatedResult, question, false, List.of());
+    }
+
+    public static String buildAskPrompt(String documentContent, String generatedResult, String question,
+                                        boolean webSearchAttempted,
+                                        List<WebSearchResultVO> searchResults) {
+        String trimmedQuestion = question == null ? "" : question.trim();
+        return """
+                你是文枢 NexusDoc 的 AI 文档与知识助手。
+
+                请像正常 GPT 对话一样，直接回答用户追问。当前文档和已生成结果只是上下文，
+                不要机械套用“文档摘要、核心要点、行动清单”等固定模板。
+
+                要求：
+                1. 用户问什么，就直接回答什么。
+                2. 如果问题需要基于当前文档，请优先使用当前文档信息。
+                3. 如果开启联网搜索，可以自然融入搜索结果，并在末尾列出“参考来源”。
+                4. 如果资料不足，请说明不确定，不要编造事实。
+                5. 回答要自然、清楚、具体。
+
+                当前文档原文：
+                %s
+
+                已生成内容：
+                %s
+
+                用户问题：
+                %s
+                %s
+                """.formatted(blankToEmpty(documentContent), blankToEmpty(generatedResult),
+                trimmedQuestion, buildNaturalSearchContext(webSearchAttempted, searchResults));
+    }
+
+    private static String buildFreeChatPrompt(String content,
+                                              boolean webSearchAttempted,
+                                              List<WebSearchResultVO> searchResults) {
+        return """
+                你是文枢 NexusDoc 的 AI 文档与知识助手。
+
+                你的目标是直接、准确、有用地回答用户问题，而不是机械套用固定模板。
+
+                请遵守以下规则：
+                1. 如果用户是在提问，请直接回答问题。
+                2. 如果用户是在要求创作，请直接创作内容。
+                3. 如果用户是在要求改写，请直接给出改写结果。
+                4. 不要把短问题强行分析成“文档摘要、核心要点、行动清单”。
+                5. 不要重复输出“原文信息、网络补充、合理推断”这类机械标签。
+                6. 如果使用了网络搜索资料，可以自然地融入回答，并在末尾列出参考来源。
+                7. 不要编造事实；如果不确定，请明确说明不确定。
+                8. 回答要自然、清楚、具体，像正常 GPT 对话一样。
+
+                用户输入：
+                %s
+                %s
+                """.formatted(content, buildNaturalSearchContext(webSearchAttempted, searchResults));
+    }
+
+    private static String buildCreativePrompt(String content,
+                                              boolean webSearchAttempted,
+                                              List<WebSearchResultVO> searchResults) {
+        return """
+                你是一个擅长中文创作的 AI 助手。请根据用户要求直接生成作品，
+                而不是分析用户的请求。
+
+                创作要求：
+                1. 直接进入正文，不要先分析“用户想要什么”。
+                2. 允许合理想象和文学化表达。
+                3. 如果用户没有给出详细设定，可以主动补充背景、冲突和情节。
+                4. 故事要有开端、发展、冲突和结尾。
+                5. 人物行为要符合设定。
+                6. 不要输出“原文未明确提到”这种文档分析式回答。
+                7. 不要写成任务清单。
+                8. 如果涉及已有角色或 IP，创作内容要标明这是“二创故事”，不要声称是原作剧情。
+                9. 内容要适合课程设计展示，避免低俗、暴力、恶意内容。
+
+                用户创作需求：
+                %s
+                %s
+                """.formatted(content, buildNaturalSearchContext(webSearchAttempted, searchResults));
+    }
+
+    private static String buildSummaryPrompt(String content,
+                                             boolean webSearchAttempted,
+                                             List<WebSearchResultVO> searchResults) {
+        return """
+                你是文枢 NexusDoc 的文档整理助手。请根据用户提供的文档内容，
+                生成结构化文档总结。
+
+                要求：
+                1. 只基于用户提供的文档内容整理。
+                2. 不要编造原文没有的信息。
+                3. 如果原文没有明确提到，请写“原文未明确提到”。
+                4. 输出要简洁、清晰、有条理。
+                5. 不要进行无关发挥。
+                6. 不要把用户的创作请求当作文档总结。
+
+                请按照以下格式输出：
+
+                【文档摘要】
+                【核心要点】
+                【结构化提纲】
+                【关键信息】
+                【行动清单】
+                【风险提醒】
+                【术语解释】
+                【推荐追问】
+
+                文档内容：
+                %s
+                %s
+                """.formatted(content, buildDocumentSearchContext(webSearchAttempted, searchResults));
+    }
+
+    private static String buildStructuredDocumentPrompt(String docType, String content,
+                                                        boolean webSearchAttempted,
+                                                        List<WebSearchResultVO> searchResults) {
         String format = switch (docType) {
             case "会议纪要" -> """
                     【会议主题】
@@ -70,177 +212,189 @@ public final class PromptTemplateFactory {
                     【建议向专业人士确认的问题】
                     【推荐追问】
                     """;
-            case "内容创作" -> """
-                    【素材摘要】
-                    【可用观点】
-                    【适合的内容选题】
-                    【文章/视频大纲】
-                    【标题建议】
-                    【可引用金句】
-                    【需要补充的信息】
-                    【推荐追问】
+            case "提取重点" -> """
+                    【核心重点】
+                    【关键事实】
+                    【重要结论】
+                    【可执行事项】
+                    【需要确认的问题】
                     """;
-            case "思维导图" -> """
-                    请根据用户提供的内容生成思维导图结构数据。
-                    只输出 JSON，不要输出解释、寒暄或 Markdown 代码块。
-
-                    JSON 格式必须如下：
-                    {
-                      "title": "中心主题",
-                      "nodes": [
-                        {
-                          "id": "1",
-                          "label": "一级节点",
-                          "level": 1,
-                          "parentId": null,
-                          "children": [
-                            {
-                              "id": "1-1",
-                              "label": "二级节点",
-                              "level": 2,
-                              "parentId": "1",
-                              "children": []
-                            }
-                          ]
-                        }
-                      ]
-                    }
-
-                    要求：
-                    1. title 是中心主题。
-                    2. nodes 是一级节点数组。
-                    3. 每个节点必须有 id、label、level、parentId、children。
-                    4. label 不要太长，适合显示在文本框中。
-                    5. 节点层级建议不超过 4 层。
-                    6. 一级节点建议 3 到 6 个。
-                    7. 每个一级节点下建议 2 到 5 个子节点。
-                    8. 不要输出图片。
-                    9. 不要输出 Mermaid。
-                    10. 不要输出 Markdown。
-                    11. 不要编造原文没有的信息。
-                    12. 如果原文信息不足，请生成较少节点，并在节点中体现“原文未明确提到”。
-                    """;
-            case "小说设定" -> """
-                    【故事核心概念】
-                    【世界观设定】
-                    【时代背景】
-                    【主要势力】
-                    【主角设定】
-                    【重要配角】
-                    【人物关系】
-                    【核心冲突】
-                    【主线剧情】
-                    【支线剧情】
-                    【章节规划】
-                    【伏笔设计】
-                    【风格建议】
-                    """;
-            case "趋势与隐藏问题分析" -> """
-                    【文档摘要】
-                    【已明确提到的信息】
-                    【可能隐藏的问题】
-                    【潜在风险】
-                    【后续趋势判断】
-                    【需要补充的数据】
-                    【建议追问的问题】
+            case "正式改写" -> """
+                    【正式改写版本】
+                    【结构优化说明】
+                    【表达注意事项】
                     """;
             default -> """
-                    【文档摘要】
-                    【核心要点】
-                    【结构化提纲】
-                    【关键信息】
-                    【行动清单】
-                    【风险提醒】
-                    【术语解释】
+                    【内容摘要】
+                    【核心信息】
+                    【结构化整理】
                     【推荐追问】
                     """;
         };
 
         return """
-                你是文枢 NexusDoc 的文档理解助手。请基于用户提供的原文生成结构化文档工作包。
+                你是文枢 NexusDoc 的文档整理助手。请按用户选择的文档处理模式整理内容。
+
                 要求：
-                1. 只基于原文内容输出，不要编造事实。
-                2. 如果原文没有明确提到，请写“原文未明确提到”。
-                3. 输出要清晰、简洁、适合普通用户理解。
-                4. 不要输出无关寒暄。
-                5. 严格使用以下栏目格式。
-                6. 小说设定模式允许合理创作，但内容必须适合课程项目展示。
-                7. 趋势判断必须标明“根据原文推测”，依据不足时写“依据不足，无法判断”。
+                1. 只在当前模式需要时使用结构化栏目。
+                2. 不要把创作请求当作文档总结。
+                3. 不要编造原文没有的信息。
+                4. 如果原文没有明确提到，请写“原文未明确提到”。
 
                 文档类型：%s
                 输出格式：
                 %s
 
-                文档原文：
+                用户内容：
                 %s
                 %s
-                """.formatted(normalizeDocType(docType), format, content,
-                buildWebSearchContext(webSearchAttempted, searchResults, docType));
+                """.formatted(docType, format, content,
+                buildDocumentSearchContext(webSearchAttempted, searchResults));
     }
 
-    public static String buildAskPrompt(String documentContent, String generatedResult, String question) {
-        return buildAskPrompt(documentContent, generatedResult, question, false, List.of());
-    }
-
-    public static String buildAskPrompt(String documentContent, String generatedResult, String question,
-                                        boolean webSearchAttempted,
-                                        List<WebSearchResultVO> searchResults) {
+    private static String buildMindMapPrompt(String content,
+                                             boolean webSearchAttempted,
+                                             List<WebSearchResultVO> searchResults) {
         return """
-                你是文枢 NexusDoc 的文档追问助手。请严格遵守：
-                1. 未开启联网搜索时，只基于当前文档内容回答。
-                2. 开启联网搜索时，请结合当前文档和网络搜索补充资料回答。
-                3. 不要编造文档和搜索资料中没有的信息。
-                4. 回答要简洁、清楚，适合普通用户理解。
-                5. 不要偏离当前文档主题。
+                请根据用户内容生成思维导图结构数据。
 
-                当前文档原文：
-                %s
+                要求：
+                1. 只输出 JSON。
+                2. 不要输出 Markdown 代码块。
+                3. 不要输出解释。
+                4. JSON 必须可以被前端直接解析。
+                5. 节点 label 要短，适合显示在文本框中。
+                6. 节点层级不要超过 4 层。
+                7. 如果启用了联网搜索，可以把网络资料作为补充节点，并用 sourceType 标记。
 
-                已生成的文档工作包：
-                %s
+                JSON 格式：
 
-                用户问题：
+                {
+                  "title": "中心主题",
+                  "nodes": [
+                    {
+                      "id": "1",
+                      "label": "一级节点",
+                      "level": 1,
+                      "parentId": null,
+                      "sourceType": "original",
+                      "children": [
+                        {
+                          "id": "1-1",
+                          "label": "二级节点",
+                          "level": 2,
+                          "parentId": "1",
+                          "sourceType": "original",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ],
+                  "references": []
+                }
+
+                用户内容：
                 %s
                 %s
-                """.formatted(documentContent, generatedResult, question,
-                buildWebSearchContext(webSearchAttempted, searchResults, ""));
+                """.formatted(content, buildMindMapSearchContext(webSearchAttempted, searchResults));
     }
 
-    private static String normalizeDocType(String docType) {
-        return DocumentTypeEnum.supports(docType) ? docType : DocumentTypeEnum.GENERAL_SUMMARY.getDisplayName();
+    private static String buildTrendPrompt(String content,
+                                           boolean webSearchAttempted,
+                                           List<WebSearchResultVO> searchResults) {
+        return """
+                你是一个文档洞察分析助手。请根据用户提供的内容，分析其中可能存在的
+                隐藏问题、风险和趋势。
+
+                要求：
+                1. 已明确提到的信息必须来自原文。
+                2. 趋势判断可以合理推测，但必须说明依据。
+                3. 不要把推测说成事实。
+                4. 如果依据不足，请写“依据不足，无法判断”。
+                5. 如果启用了联网搜索，可以结合搜索结果，但要说明来源。
+
+                输出格式：
+
+                【核心结论】
+                【已明确的信息】
+                【隐藏问题】
+                【潜在风险】
+                【趋势判断】
+                【依据不足的部分】
+                【建议追问】
+
+                用户内容：
+                %s
+                %s
+                """.formatted(content, buildDocumentSearchContext(webSearchAttempted, searchResults));
     }
 
-    private static String buildWebSearchContext(boolean webSearchAttempted,
-                                                List<WebSearchResultVO> searchResults,
-                                                String docType) {
+    private static String buildNaturalSearchContext(boolean webSearchAttempted,
+                                                    List<WebSearchResultVO> searchResults) {
         if (!webSearchAttempted) {
-            return "\n联网搜索：未启用。请只基于用户提供的文档内容回答。";
+            return "\n联网搜索：未启用。";
         }
         if (searchResults == null || searchResults.isEmpty()) {
             return """
 
-                    联网搜索：已启用。
-                    本次已尝试联网搜索，但未检索到有效网络资料。请明确说明这一点，并主要基于用户提供的内容回答。
+                    用户开启了联网搜索，但本次没有检索到有效资料。
+                    请直接回答用户问题；如果问题可以创作或推理，就继续完成用户需求。
+                    如果问题依赖事实资料，请简洁说明“没有检索到足够有效的网络资料”，不要强行编造事实。
                     """;
         }
+        return """
 
-        StringBuilder builder = new StringBuilder();
-        builder.append("""
-
-                以下是网络搜索补充资料，仅供参考。请结合用户原文和搜索结果回答。
+                用户开启了联网搜索功能。
+                请结合用户问题和搜索结果，给出自然、有用的回答。
 
                 要求：
-                1. 原文明确提到的内容，标记为“原文信息”。
-                2. 搜索结果提供的内容，标记为“网络补充”。
-                3. 基于原文和搜索结果的判断，标记为“合理推断”。
-                4. 不要把推断说成事实。
-                5. 如果搜索结果之间存在冲突，请说明“不同来源说法不一致”。
-                6. 如果没有足够依据，请写“依据不足，无法判断”。
-                7. 不要编造搜索结果中没有的信息。
-                8. 回答末尾列出参考来源标题和链接。
-                """);
-        appendModeSpecificRules(builder, docType);
-        builder.append("\n网络搜索结果：\n");
+                1. 直接回答用户问题，不要机械拆成一堆标签。
+                2. 网络搜索结果只作为补充资料，不要照搬搜索摘要。
+                3. 如果搜索结果能帮助回答，请自然融入回答中。
+                4. 如果搜索结果不足，请明确说明“我没有找到足够可靠的资料”，然后基于已有信息回答。
+                5. 如果是创作任务，可以参考搜索结果中的背景设定，但不要声称创作内容是原作事实。
+                6. 回答最后用“参考来源”列出用到的来源标题和链接。
+                7. 不要输出“原文信息、网络补充、合理推断”这些固定标题，除非用户明确要求区分来源。
+
+                网络搜索结果：
+                %s
+                """.formatted(formatSearchResults(searchResults));
+    }
+
+    private static String buildDocumentSearchContext(boolean webSearchAttempted,
+                                                     List<WebSearchResultVO> searchResults) {
+        if (!webSearchAttempted) {
+            return "\n联网搜索：未启用。";
+        }
+        if (searchResults == null || searchResults.isEmpty()) {
+            return "\n联网搜索：已启用，但没有检索到有效资料。请主要基于用户内容回答。";
+        }
+        return """
+
+                网络搜索结果仅作为补充资料，不要混入原文事实。若使用搜索结果，请说明来源并在末尾列出参考来源。
+
+                网络搜索结果：
+                %s
+                """.formatted(formatSearchResults(searchResults));
+    }
+
+    private static String buildMindMapSearchContext(boolean webSearchAttempted,
+                                                    List<WebSearchResultVO> searchResults) {
+        if (!webSearchAttempted) {
+            return "\n网络搜索结果：未启用。";
+        }
+        if (searchResults == null || searchResults.isEmpty()) {
+            return "\n网络搜索结果：已尝试联网搜索，但没有检索到有效资料。references 使用空数组。";
+        }
+        return """
+
+                网络搜索结果：
+                %s
+                """.formatted(formatSearchResults(searchResults));
+    }
+
+    private static String formatSearchResults(List<WebSearchResultVO> searchResults) {
+        StringBuilder builder = new StringBuilder();
         for (WebSearchResultVO result : searchResults) {
             builder.append("\n[")
                     .append(result.getIndex())
@@ -255,45 +409,84 @@ public final class PromptTemplateFactory {
         return builder.toString();
     }
 
-    private static void appendModeSpecificRules(StringBuilder builder, String docType) {
-        if ("思维导图".equals(docType)) {
-            builder.append("""
+    private static boolean isMindMapMode(String docType, String content) {
+        return MIND_MAP.equals(docType)
+                || containsAny(content, "生成思维导图", "思维导图", "节点 JSON", "节点JSON");
+    }
 
-                    思维导图模式要求：
-                    1. 返回仍然必须是合法 JSON，不要输出 Markdown 或代码块。
-                    2. JSON 节点可以增加 sourceType 字段，只能是 original、web、inferred。
-                    3. JSON 中增加 references 数组，列出参考来源标题和链接。
-                    """);
-            return;
-        }
-        if ("趋势与隐藏问题分析".equals(docType)) {
-            builder.append("""
+    private static boolean isTrendMode(String docType, String content) {
+        return TREND_ANALYSIS.equals(docType)
+                || "趋势分析".equals(docType)
+                || containsAny(content, "分析趋势", "趋势分析", "隐藏问题", "风险分析", "潜在风险");
+    }
 
-                    趋势分析模式建议输出结构：
-                    【文档摘要】
-                    【原文已明确提到的信息】
-                    【网络补充信息】
-                    【可能隐藏的问题】
-                    【潜在风险】
-                    【后续趋势判断】
-                    【依据不足的部分】
-                    【建议追问的问题】
-                    【参考来源】
-                    """);
-            return;
-        }
-        if ("小说设定".equals(docType) || "内容创作".equals(docType)) {
-            builder.append("""
+    private static boolean isCreativeMode(String docType) {
+        return "内容创作".equals(docType) || "小说设定".equals(docType);
+    }
 
-                    创作类任务要求：
-                    1. 网络资料只用于背景参考，不要声称创作内容是原作剧情或真实事实。
-                    2. 可以输出【故事设定参考】【角色关系补充】【创作版本】【参考来源】。
-                    3. 内容必须适合课程项目展示。
-                    """);
+    private static boolean isGeneralSummaryMode(String docType) {
+        return GENERAL_SUMMARY.equals(docType);
+    }
+
+    private static boolean isStructuredDocumentMode(String docType) {
+        return switch (docType) {
+            case "会议纪要", "工作任务", "学习资料", "政策公告", "合同初读", "提取重点", "正式改写" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isCreativeIntent(String content) {
+        return containsAny(content,
+                "请写", "编写", "创作", "生成故事", "写小说", "写文案", "续写", "写一段", "帮我写",
+                "设定", "世界观", "人物", "剧情", "大纲", "文案", "标题", "脚本");
+    }
+
+    private static boolean isSummaryIntent(String content) {
+        return containsAny(content, "总结", "概括", "提炼", "提取重点", "整理这份文档", "文档总结")
+                && !isCreativeIntent(content)
+                && !isQuestionIntent(content)
+                && !isRewriteIntent(content);
+    }
+
+    private static boolean isQuestionIntent(String content) {
+        return containsAny(content, "是什么", "为什么", "怎么做", "如何", "请问", "解释一下",
+                "举例", "帮我理解", "这是什么意思");
+    }
+
+    private static boolean isRewriteIntent(String content) {
+        return containsAny(content, "润色", "优化", "改成", "正式一点", "口语化一点",
+                "精简", "扩写", "降重", "翻译");
+    }
+
+    private static boolean containsAny(String content, String... keywords) {
+        if (content == null || content.isBlank()) {
+            return false;
         }
+        for (String keyword : keywords) {
+            if (content.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeDocType(String docType) {
+        if (docType == null || docType.isBlank()) {
+            return FREE_CHAT;
+        }
+        String trimmed = docType.trim();
+        return switch (trimmed) {
+            case "自由对话", "智能回答", "普通对话", "GPT对话", "FREE_CHAT" -> FREE_CHAT;
+            case "趋势分析" -> TREND_ANALYSIS;
+            default -> trimmed;
+        };
     }
 
     private static String blankToUnknown(String value) {
         return value == null || value.isBlank() ? "未提供" : value;
+    }
+
+    private static String blankToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }

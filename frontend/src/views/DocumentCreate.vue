@@ -59,20 +59,18 @@ import { ANONYMOUS_USER_ID } from '../config/user';
 const router = useRouter();
 const loading = ref(false);
 const docTypes = [
+  '智能回答',
   '通用总结',
   '会议纪要',
-  '工作任务',
-  '学习资料',
-  '政策公告',
-  '合同初读',
-  '内容创作',
+  '提取重点',
+  '正式改写',
   '思维导图',
   '小说设定',
-  '趋势与隐藏问题分析'
+  '趋势分析'
 ];
 const form = reactive({
   title: '',
-  docType: '通用总结',
+  docType: '智能回答',
   tag: '',
   content: '',
   enableWebSearch: false
@@ -104,7 +102,7 @@ function clearForm() {
   form.title = '';
   form.tag = '';
   form.content = '';
-  form.docType = '通用总结';
+  form.docType = '智能回答';
   form.enableWebSearch = false;
 }
 </script>

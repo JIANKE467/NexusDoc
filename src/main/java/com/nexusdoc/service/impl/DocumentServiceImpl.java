@@ -192,7 +192,7 @@ public class DocumentServiceImpl implements DocumentService {
     private String normalizeDocType(String docType) {
         return DocumentTypeEnum.supports(docType.trim())
                 ? docType.trim()
-                : DocumentTypeEnum.GENERAL_SUMMARY.getDisplayName();
+                : DocumentTypeEnum.FREE_CHAT.getDisplayName();
     }
 
     private Long resolveUserId(Long userId) {
