@@ -3,9 +3,9 @@
     <div class="history-shell">
       <div class="history-header">
         <div>
-          <p class="history-kicker">Knowledge Archive</p>
-          <h1 class="history-title">历史记录</h1>
-          <p class="history-desc">已处理的文档会沉淀在这里，方便继续查看、追问和复用。</p>
+          <p class="history-kicker">Workspace Library</p>
+          <h1 class="history-title">历史工作台库</h1>
+          <p class="history-desc">已生成的知识卡片工作台会沉淀在这里，方便继续查看、追问、归档和复用。</p>
         </div>
         <button class="history-action-button" type="button" @click="$router.push('/')">
           处理新文档
@@ -28,35 +28,30 @@
 
         <div v-else-if="documents.length === 0" class="history-state">
           <div class="state-icon">DOC</div>
-          <div class="state-title">暂无历史记录</div>
-          <div class="state-desc">开始处理第一份文档后，它会出现在这里。</div>
-          <button class="state-button" type="button" @click="$router.push('/')">处理新文档</button>
+          <div class="state-title">暂无历史工作台</div>
+          <div class="state-desc">生成第一组知识卡片后，它会出现在这里。</div>
+          <button class="state-button" type="button" @click="$router.push('/')">生成知识卡片</button>
         </div>
 
-        <el-table v-else class="history-table" :data="documents">
-          <el-table-column prop="title" label="标题" min-width="180" />
-          <el-table-column prop="docType" label="类型" width="110" />
-          <el-table-column prop="tag" label="标签" width="120">
-            <template #default="{ row }">{{ row.tag || '未设置' }}</template>
-          </el-table-column>
-          <el-table-column prop="summaryPreview" label="摘要预览" min-width="260" show-overflow-tooltip />
-          <el-table-column label="创建时间" width="170">
-            <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="220" fixed="right">
-            <template #default="{ row }">
-              <button class="table-action" type="button" @click="$router.push(`/document/${row.documentId}`)">
-                查看
-              </button>
-              <button class="table-action" type="button" @click="$router.push(`/chat/${row.documentId}`)">
-                追问
-              </button>
-              <button class="table-action danger" type="button" @click="remove(row.documentId)">
-                删除
-              </button>
-            </template>
-          </el-table-column>
-        </el-table>
+        <div v-else class="history-workspace-grid">
+          <article v-for="row in documents" :key="row.documentId" class="history-workspace-card">
+            <div class="workspace-card-top">
+              <span>{{ row.docType || '智能回答' }}</span>
+              <small>{{ formatTime(row.createTime) }}</small>
+            </div>
+            <h2>{{ row.title || '未命名工作台' }}</h2>
+            <p>{{ row.summaryPreview || '暂无摘要预览。打开工作台后可继续查看生成内容。' }}</p>
+            <div class="workspace-meta">
+              <span>{{ row.tag || '未设置标签' }}</span>
+              <span>{{ estimateCardCount(row) }} 张卡片</span>
+            </div>
+            <div class="workspace-actions">
+              <button type="button" @click="$router.push(`/document/${row.documentId}`)">打开</button>
+              <button type="button" @click="$router.push(`/chat/${row.documentId}`)">继续追问</button>
+              <button class="danger" type="button" @click="remove(row.documentId)">删除</button>
+            </div>
+          </article>
+        </div>
       </div>
     </div>
   </section>
@@ -115,6 +110,12 @@ function normalizeHistoryList(result) {
 function formatTime(value) {
   return value ? value.replace('T', ' ') : '';
 }
+
+function estimateCardCount(row) {
+  const text = `${row.summaryPreview || ''} ${row.resultText || ''}`;
+  const headings = text.match(/【[^】]+】/g);
+  return Math.max(3, Math.min(8, headings?.length || 4));
+}
 </script>
 
 <style scoped>
@@ -123,8 +124,8 @@ function formatTime(value) {
   overflow: auto;
   color: var(--nx-text);
   background:
-    radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.22), transparent 32%),
-    radial-gradient(circle at 80% 15%, rgba(34, 211, 238, 0.12), transparent 28%),
+    radial-gradient(circle at 20% 0%, rgba(184, 216, 204, 0.08), transparent 32%),
+    radial-gradient(circle at 80% 12%, rgba(216, 178, 110, 0.06), transparent 28%),
     var(--nx-bg);
 }
 
@@ -178,16 +179,16 @@ function formatTime(value) {
   min-height: 42px;
   padding: 0 18px;
   border-radius: 13px;
-  color: #04111f;
+  color: #08110f;
   font-weight: 700;
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.92), rgba(59, 130, 246, 0.88));
-  box-shadow: 0 12px 30px rgba(34, 211, 238, 0.18);
+  background: var(--nx-accent);
+  box-shadow: none;
 }
 
 .history-action-button:hover,
 .state-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 40px rgba(34, 211, 238, 0.24);
+  box-shadow: var(--nx-shadow-card);
 }
 
 .history-panel {
@@ -195,11 +196,101 @@ function formatTime(value) {
   overflow: hidden;
   border: 1px solid var(--nx-border);
   border-radius: 24px;
-  background: rgba(8, 18, 38, 0.82);
+  background: var(--nx-panel);
   box-shadow:
     0 24px 80px rgba(0, 0, 0, 0.42),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(20px);
+}
+
+.history-workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 18px;
+}
+
+.history-workspace-card {
+  display: grid;
+  gap: 14px;
+  min-height: 260px;
+  padding: 20px;
+  border: 1px solid var(--nx-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(247, 232, 211, 0.54));
+  box-shadow: var(--nx-shadow-card);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.history-workspace-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(221, 153, 96, 0.24);
+  box-shadow: 0 20px 46px rgba(120, 84, 42, 0.12);
+}
+
+.workspace-card-top,
+.workspace-meta,
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.workspace-card-top span,
+.workspace-meta span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #8b5428;
+  background: var(--nx-accent-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.workspace-card-top small {
+  color: var(--nx-text-muted);
+}
+
+.history-workspace-card h2 {
+  margin: 0;
+  color: var(--nx-text);
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.history-workspace-card p {
+  margin: 0;
+  color: var(--nx-text-soft);
+  line-height: 1.72;
+}
+
+.workspace-actions {
+  justify-content: flex-start;
+  margin-top: auto;
+}
+
+.workspace-actions button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--nx-border);
+  border-radius: 999px;
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.54);
+  cursor: pointer;
+}
+
+.workspace-actions button:hover {
+  border-color: rgba(221, 153, 96, 0.24);
+  background: rgba(231, 183, 123, 0.16);
+}
+
+.workspace-actions .danger {
+  color: var(--nx-danger);
 }
 
 .history-state {
@@ -216,10 +307,10 @@ function formatTime(value) {
   height: 54px;
   margin-bottom: 18px;
   place-items: center;
-  border: 1px solid rgba(34, 211, 238, 0.22);
+  border: 1px solid rgba(184, 216, 204, 0.18);
   border-radius: 18px;
-  color: #67e8f9;
-  background: rgba(34, 211, 238, 0.1);
+  color: var(--nx-accent-strong);
+  background: var(--nx-accent-soft);
 }
 
 .state-icon.is-loading {
@@ -251,21 +342,21 @@ function formatTime(value) {
   margin-top: 20px;
   padding: 0 16px;
   border-radius: 12px;
-  color: #04111f;
+  color: #08110f;
   font-weight: 700;
-  background: linear-gradient(135deg, #67e8f9, #60a5fa);
+  background: var(--nx-accent);
 }
 
 .table-action {
   margin-right: 10px;
   padding: 6px 8px;
   border-radius: 9px;
-  color: rgba(165, 243, 252, 0.9);
+  color: var(--nx-accent-strong);
   background: transparent;
 }
 
 .table-action:hover {
-  background: rgba(34, 211, 238, 0.1);
+  background: var(--nx-accent-soft);
 }
 
 .table-action.danger {
@@ -304,7 +395,7 @@ function formatTime(value) {
 }
 
 :deep(.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell) {
-  background: rgba(34, 211, 238, 0.08) !important;
+  background: var(--nx-accent-soft) !important;
 }
 
 :deep(.el-table__inner-wrapper::before),
@@ -316,7 +407,7 @@ function formatTime(value) {
 
 :deep(.el-table__fixed-right),
 :deep(.el-table__fixed-right-patch) {
-  background: rgba(8, 18, 38, 0.94) !important;
+  background: var(--nx-panel-strong) !important;
 }
 
 @keyframes pulseState {
@@ -340,6 +431,10 @@ function formatTime(value) {
   .history-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .history-workspace-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

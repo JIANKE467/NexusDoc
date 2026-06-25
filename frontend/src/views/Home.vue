@@ -9,8 +9,6 @@
     <div class="floating-artifacts" aria-hidden="true">
       <span class="artifact artifact-doc">DOC</span>
       <span class="artifact artifact-node"></span>
-      <span class="artifact artifact-map">JSON</span>
-      <span class="artifact artifact-ai">AI</span>
       <span class="artifact artifact-line"></span>
     </div>
 
@@ -19,20 +17,27 @@
         <div class="brand-mark">文</div>
         <div>
           <strong>NexusDoc</strong>
-          <span>Knowledge OS</span>
+          <span>Card Workspace</span>
         </div>
       </div>
 
       <button class="new-chat" type="button" @click="createSession">
         <span>+</span>
-        新建对话
+        新建工作台
       </button>
 
+      <div class="sidebar-mini-label">快速开始</div>
+      <div class="quick-actions">
+        <button type="button" @click="createSession">新建</button>
+        <button type="button" @click="applyCommand('summary')">摘要卡</button>
+        <button type="button" @click="applyCommand('mindmap')">结构卡</button>
+      </div>
+
       <div class="sidebar-section">
-        <p>最近会话</p>
+        <p>最近工作台</p>
         <div class="session-scroll-list">
           <div v-if="sortedSessions.length === 0" class="session-empty">
-            暂无会话，点击“新建对话”开始处理文档。
+            暂无工作台，点击“新建工作台”开始生成知识卡片。
           </div>
           <div
             v-for="session in sortedSessions"
@@ -64,10 +69,23 @@
               <span v-else-if="session.pinned" class="pin-badge">Pinned</span>
               <span class="session-meta">{{ session.updatedAt }}</span>
               <span class="meta-dot">·</span>
-              <span class="folder-chip">{{ session.isDraft ? '未发送' : (session.folderName || DEFAULT_FOLDER) }}</span>
+              <span class="folder-chip">{{ session.isDraft ? '未生成' : `${getSessionCardCount(session)} 张卡片` }}</span>
             </div>
           </div>
         </div>
+      </div>
+
+      <div class="sidebar-filter">
+        <p>卡片筛选器</p>
+        <button
+          v-for="filter in cardFilters"
+          :key="filter"
+          :class="{ active: activeCardFilter === filter }"
+          type="button"
+          @click="activeCardFilter = filter"
+        >
+          {{ filter }}
+        </button>
       </div>
     </aside>
 
@@ -129,42 +147,42 @@
         <div v-else-if="activeMessages.length === 0" class="welcome-panel">
           <section class="hero-stage" aria-labelledby="home-hero-title">
             <div class="hero-copy">
-              <span class="status-pill">AI Document Intelligence</span>
-              <p class="hero-kicker">AI Document Ocean / 文档知识深海</p>
+              <span class="status-pill">AI Card Workspace</span>
+              <p class="hero-kicker">Generative Knowledge Canvas</p>
               <h2 id="home-hero-title">
                 让每一份文档，<br />
-                都成为可对话的知识。
+                都长成可操作的知识卡片。
               </h2>
               <p class="hero-subtitle">
-                上传、总结、提问、搜索、生成思维导图，让复杂文档变成可以持续追问的知识工作台。
+                上传、总结、提炼、引用、分发。NexusDoc 帮你把文档生成摘要卡、观点卡、引用卡与任务卡。
               </p>
               <div class="hero-actions">
                 <button class="primary-cta" type="button" @click="startProcessing">
-                  开始处理文档
+                  开始生成卡片
                 </button>
-                <button class="secondary-cta" type="button" @click="$router.push('/history')">
-                  查看历史记录
+                <button class="secondary-cta" type="button" @click="openCommandCenter">
+                  打开命令中心
                 </button>
               </div>
             </div>
 
             <div class="ocean-stage" aria-hidden="true">
               <div class="knowledge-core">
-                <span>文枢</span>
+                <span>摘要</span>
                 <i></i>
               </div>
               <div class="stage-card stage-card-main">
-                <small>Document Stream</small>
-                <strong>会议纪要 / 课程资料 / 项目需求</strong>
-                <span>Structured into searchable knowledge</span>
+                <small>Summary Card</small>
+                <strong>核心摘要、结论和背景</strong>
+                <span>文档被拆解成可继续操作的模块</span>
               </div>
               <div class="stage-card stage-card-left">
-                <small>Mind Map</small>
-                <strong>节点结构</strong>
+                <small>Citation Card</small>
+                <strong>来源引用</strong>
               </div>
               <div class="stage-card stage-card-right">
-                <small>Web Search</small>
-                <strong>参考来源</strong>
+                <small>Action Card</small>
+                <strong>任务与风险</strong>
               </div>
               <div class="stage-bubble bubble-one"></div>
               <div class="stage-bubble bubble-two"></div>
@@ -174,7 +192,7 @@
           <div class="section-heading">
             <span>Document Tools</span>
             <h3>今天想处理什么文档？</h3>
-            <p>从总结、提取、改写，到联网补充与结构生成，把文档沉入知识深海，再浮出清晰答案。</p>
+            <p>从总结、提取、改写，到联网补充与结构生成，把零散文本整理成可复用的知识资产。</p>
           </div>
 
           <div class="prompt-grid">
@@ -210,23 +228,73 @@
           </section>
         </div>
 
-        <div v-else class="message-list">
-          <article
-            v-for="message in activeMessages"
-            :key="message.id"
-            :class="['message-row', message.role]"
-          >
-            <div class="avatar">{{ message.role === 'assistant' ? 'AI' : '我' }}</div>
-            <div class="message-bubble">
-              <div v-if="message.loading" class="thinking">
-                <span>AI 正在思考</span>
-                <i></i>
-                <i></i>
-                <i></i>
-              </div>
-              <div v-else class="message-content">{{ message.content }}</div>
+        <div v-else class="workspace-canvas">
+          <section class="workspace-brief">
+            <span class="status-pill">Generated Workspace</span>
+            <h2>{{ activeSession?.title || '知识卡片工作台' }}</h2>
+            <p>{{ latestUserPrompt }}</p>
+          </section>
+
+          <section v-if="isGeneratingCards" class="card-skeleton-grid" aria-label="正在生成知识卡片">
+            <article v-for="item in skeletonCards" :key="item" class="knowledge-card skeleton-card">
+              <span></span>
+              <strong>{{ item }}</strong>
+              <p></p>
+              <p></p>
+            </article>
+          </section>
+
+          <section v-else class="generated-layout">
+            <div class="generated-card-grid">
+              <article
+                v-for="card in filteredGeneratedCards"
+                :key="card.id"
+                :class="['knowledge-card', card.tone]"
+              >
+                <div class="card-head">
+                  <span>{{ card.label }}</span>
+                  <small>{{ card.meta }}</small>
+                </div>
+                <h3>{{ card.title }}</h3>
+                <p>{{ card.body }}</p>
+                <ul v-if="card.points.length">
+                  <li v-for="point in card.points" :key="point">{{ point }}</li>
+                </ul>
+                <div v-if="card.sources.length" class="source-chips">
+                  <button v-for="source in card.sources" :key="source.id" type="button">
+                    [{{ source.id }}]
+                  </button>
+                </div>
+                <div class="card-actions">
+                  <button type="button" @click="copyText(card.raw)">复制</button>
+                  <button type="button" @click="askFromCard(card)">继续追问</button>
+                  <button type="button" @click="openMoveDialog(activeSession)">加入档案夹</button>
+                </div>
+              </article>
             </div>
-          </article>
+
+            <aside class="source-rail">
+              <div class="source-rail-head">
+                <span>参考来源</span>
+                <strong>{{ sourceCards.length }}</strong>
+              </div>
+              <article v-if="sourceCards.length === 0" class="citation-card muted-source">
+                <span>Sources</span>
+                <p>开启联网搜索后，来源会以引用卡片形式展示在这里。</p>
+              </article>
+              <article v-for="source in sourceCards" :key="source.id" class="citation-card">
+                <span>[{{ source.id }}] {{ source.site || 'Reference' }}</span>
+                <strong>{{ source.title }}</strong>
+                <p>{{ source.snippet }}</p>
+                <a :href="source.url" target="_blank" rel="noreferrer">打开来源</a>
+              </article>
+            </aside>
+          </section>
+
+          <details class="raw-response">
+            <summary>查看原始生成文本</summary>
+            <pre>{{ latestAssistantText }}</pre>
+          </details>
         </div>
       </section>
 
@@ -235,7 +303,7 @@
           <textarea
             v-model="inputText"
             rows="1"
-            placeholder="粘贴文档、输入需求，或直接说：帮我总结这份材料..."
+            placeholder="粘贴文档，告诉 NexusDoc 要生成哪些知识卡片…"
             @input="resizeComposer"
             @keydown="handleComposerKeydown"
           ></textarea>
@@ -248,15 +316,41 @@
                 <input v-model="enableWebSearch" type="checkbox" />
                 <span>联网搜索</span>
               </label>
+              <div class="card-type-pills">
+                <button v-for="pill in quickCardPills" :key="pill.label" type="button" @click="applyCommand(pill.command)">
+                  {{ pill.label }}
+                </button>
+              </div>
             </div>
             <button class="send-button" type="button" :disabled="sending || !inputText.trim()" @click="sendMessage">
               <span v-if="sending">生成中</span>
-              <span v-else>发送</span>
+              <span v-else>生成卡片</span>
             </button>
           </div>
         </div>
       </footer>
     </main>
+
+    <div v-if="commandCenterOpen" class="command-overlay" @click.self="closeCommandCenter">
+      <section class="command-center" role="dialog" aria-modal="true" aria-label="命令中心">
+        <div class="command-search">
+          <span>⌘K</span>
+          <input v-model="commandQuery" placeholder="搜索命令，或输入你想生成的知识卡片…" @keydown.esc="closeCommandCenter" />
+        </div>
+        <div class="command-list">
+          <button
+            v-for="command in filteredCommands"
+            :key="command.id"
+            type="button"
+            @click="runCommand(command)"
+          >
+            <span>{{ command.icon }}</span>
+            <strong>{{ command.title }}</strong>
+            <small>{{ command.description }}</small>
+          </button>
+        </div>
+      </section>
+    </div>
 
     <el-dialog v-model="moveDialogVisible" title="移动到档案夹" width="460px" class="nexus-dialog">
       <div class="move-dialog-body">
@@ -288,7 +382,15 @@ import { ANONYMOUS_USER_ID } from '../config/user';
 
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
 const DEFAULT_FOLDER = '默认档案夹';
-const folderOptions = ['默认档案夹', '学习资料', '项目文档', '小说设定', '政策合同'];
+const folderOptions = ['默认档案夹', '收藏', '项目文档', '小说设定', '会议资料'];
+const cardFilters = ['全部卡片', '摘要卡', '观点卡', '引用卡', '任务卡', '生成卡', '结构卡'];
+const quickCardPills = [
+  { label: '摘要卡', command: 'summary' },
+  { label: '观点卡', command: 'insight' },
+  { label: '任务卡', command: 'action' },
+  { label: '思维导图', command: 'mindmap' }
+];
+const skeletonCards = ['正在拆解文档…', '正在生成摘要卡…', '正在提取观点…', '正在整理引用来源…'];
 
 const docTypes = [
   '智能回答',
@@ -374,6 +476,9 @@ const selectedFolder = ref(DEFAULT_FOLDER);
 const moveDialogVisible = ref(false);
 const movingSession = ref(null);
 const targetFolder = ref(DEFAULT_FOLDER);
+const activeCardFilter = ref('全部卡片');
+const commandCenterOpen = ref(false);
+const commandQuery = ref('');
 const scrollProgress = ref(0);
 const featureCards = ref([]);
 const visibleCards = ref([]);
@@ -385,6 +490,22 @@ let featureObserver = null;
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
+const latestUserPrompt = computed(() => {
+  return [...activeMessages.value].reverse().find((message) => message.role === 'user')?.content || '输入需求后，NexusDoc 会把内容拆成可操作的知识卡片。';
+});
+const latestAssistantMessage = computed(() => {
+  return [...activeMessages.value].reverse().find((message) => message.role === 'assistant');
+});
+const latestAssistantText = computed(() => latestAssistantMessage.value?.content || '');
+const isGeneratingCards = computed(() => Boolean(latestAssistantMessage.value?.loading));
+const sourceCards = computed(() => extractSources(latestAssistantText.value));
+const generatedCards = computed(() => buildGeneratedCards(latestAssistantText.value, selectedDocType.value));
+const filteredGeneratedCards = computed(() => {
+  if (activeCardFilter.value === '全部卡片') {
+    return generatedCards.value;
+  }
+  return generatedCards.value.filter((card) => card.label === activeCardFilter.value);
+});
 const sortedSessions = computed(() => {
   return [...sessions.value].sort((first, second) => {
     if (Boolean(first.pinned) !== Boolean(second.pinned)) {
@@ -410,10 +531,31 @@ const folderStats = computed(() => {
 const folderSessions = computed(() => {
   return sortedSessions.value.filter((session) => (session.folderName || DEFAULT_FOLDER) === selectedFolder.value);
 });
+const commands = computed(() => [
+  { id: 'summary', icon: 'S', title: '生成摘要卡', description: '提炼摘要、结论和关键事实', docType: '通用总结' },
+  { id: 'insight', icon: 'I', title: '提取观点卡', description: '拆解观点、理由和风险', docType: '趋势分析' },
+  { id: 'citation', icon: 'C', title: '生成引用卡', description: '开启联网搜索并整理来源引用', docType: '智能回答', enableWebSearch: true },
+  { id: 'action', icon: 'A', title: '生成任务卡', description: '整理待办、优先级和后续动作', docType: '会议纪要' },
+  { id: 'mindmap', icon: 'M', title: '生成思维导图节点', description: '输出结构化节点和层级关系', docType: '思维导图' },
+  { id: 'trend', icon: 'T', title: '分析趋势与风险', description: '生成趋势、风险和隐藏问题卡', docType: '趋势分析' },
+  { id: 'history', icon: 'H', title: '打开历史记录', description: '进入历史工作台库' },
+  { id: 'folders', icon: 'F', title: '打开档案夹', description: '查看知识沉淀空间' },
+  { id: 'web', icon: 'W', title: '开启联网搜索', description: '让生成结果包含来源引用卡', enableWebSearch: true },
+  { id: 'new', icon: 'N', title: '新建工作台', description: '创建一个新的卡片生成工作台' }
+]);
+const filteredCommands = computed(() => {
+  const keyword = commandQuery.value.trim().toLowerCase();
+  if (!keyword) {
+    return commands.value;
+  }
+  return commands.value.filter((command) => `${command.title} ${command.description}`.toLowerCase().includes(keyword));
+});
 
 onMounted(async () => {
   restoreSessions();
   syncActiveNavFromRoute(route.query.view);
+  window.addEventListener('nexusdoc:open-command-center', openCommandCenter);
+  window.addEventListener('keydown', handleGlobalKeydown);
   await loadAiConfig();
   await nextTick();
   initMotionEffects();
@@ -426,6 +568,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   teardownMotionEffects();
+  window.removeEventListener('nexusdoc:open-command-center', openCommandCenter);
+  window.removeEventListener('keydown', handleGlobalKeydown);
 });
 
 watch(
@@ -509,12 +653,81 @@ function applyPrompt(prompt) {
   });
 }
 
+function applyCommand(commandId) {
+  const command = commands.value.find((item) => item.id === commandId);
+  if (!command) {
+    return;
+  }
+  selectedDocType.value = command.docType || selectedDocType.value;
+  if (command.enableWebSearch) {
+    enableWebSearch.value = true;
+  }
+  const prefixMap = {
+    summary: '请把下面内容生成摘要卡、关键结论卡和引用卡：\n\n',
+    insight: '请把下面内容拆成观点卡、风险卡和建议追问卡：\n\n',
+    citation: '请联网检索相关资料，并生成引用卡与可信来源摘要：\n\n',
+    action: '请把下面内容整理成任务卡，包含负责人、优先级和截止时间：\n\n',
+    mindmap: '请把下面内容生成结构卡和思维导图节点 JSON：\n\n',
+    trend: '请把下面内容生成趋势卡、风险卡和隐藏问题卡：\n\n'
+  };
+  inputText.value = prefixMap[command.id] || inputText.value;
+  closeCommandCenter();
+  nextTick(focusComposerInput);
+}
+
 function startProcessing() {
   activeNav.value = 'home';
   nextTick(() => {
     const textarea = document.querySelector('.composer textarea');
     textarea?.focus();
   });
+}
+
+function openCommandCenter() {
+  commandCenterOpen.value = true;
+  commandQuery.value = '';
+  nextTick(() => {
+    document.querySelector('.command-search input')?.focus();
+  });
+}
+
+function closeCommandCenter() {
+  commandCenterOpen.value = false;
+}
+
+function handleGlobalKeydown(event) {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    openCommandCenter();
+  }
+  if (event.key === 'Escape' && commandCenterOpen.value) {
+    closeCommandCenter();
+  }
+}
+
+function runCommand(command) {
+  if (command.id === 'history') {
+    closeCommandCenter();
+    router.push('/history');
+    return;
+  }
+  if (command.id === 'folders') {
+    closeCommandCenter();
+    openFolderView();
+    return;
+  }
+  if (command.id === 'new') {
+    closeCommandCenter();
+    createSession();
+    return;
+  }
+  if (command.id === 'web') {
+    enableWebSearch.value = true;
+    closeCommandCenter();
+    nextTick(focusComposerInput);
+    return;
+  }
+  applyCommand(command.id);
 }
 
 function setFeatureCardRef(el, index) {
@@ -707,6 +920,179 @@ function buildSessionTitle(content) {
     return '新文档对话';
   }
   return text.length > 18 ? `${text.slice(0, 18)}...` : text;
+}
+
+function getSessionCardCount(session) {
+  const assistantText = [...(session.messages || [])].reverse().find((message) => message.role === 'assistant')?.content || '';
+  return buildGeneratedCards(assistantText, selectedDocType.value).length;
+}
+
+function buildGeneratedCards(text, docType) {
+  if (!text) {
+    return [];
+  }
+  const sections = splitIntoSections(text);
+  const sourceList = extractSources(text);
+  const cards = [];
+
+  cards.push({
+    id: 'summary-card',
+    label: '摘要卡',
+    tone: 'summary',
+    meta: 'Summary',
+    title: inferTitle(sections, '核心摘要'),
+    body: sections[0]?.body || text.slice(0, 180),
+    points: pickPoints(text, ['摘要', '核心', '结论', '要点']).slice(0, 3),
+    sources: sourceList.slice(0, 3),
+    raw: sections[0]?.raw || text
+  });
+
+  cards.push({
+    id: 'insight-card',
+    label: '观点卡',
+    tone: 'insight',
+    meta: 'Insight',
+    title: inferSectionTitle(sections, ['观点', '分析', '风险', '趋势']) || '关键观点与判断',
+    body: findSectionBody(sections, ['观点', '分析', '风险', '趋势']) || '系统已将回答中的关键判断整理为观点卡，便于继续追问和归档。',
+    points: pickPoints(text, ['风险', '建议', '推测', '判断']).slice(0, 4),
+    sources: sourceList.slice(0, 2),
+    raw: text
+  });
+
+  if (/任务|行动|待办|负责人|截止|清单/.test(text) || /会议纪要|任务/.test(docType)) {
+    cards.push({
+      id: 'action-card',
+      label: '任务卡',
+      tone: 'action',
+      meta: 'Action',
+      title: '可执行任务清单',
+      body: findSectionBody(sections, ['行动', '任务', '待办', '清单']) || '把回答中的行动项整理为任务卡，适合复制到项目计划中。',
+      points: pickPoints(text, ['行动', '任务', '待办', '截止', '负责人']).slice(0, 5),
+      sources: [],
+      raw: text
+    });
+  }
+
+  if (/思维导图|JSON|nodes|children|结构|大纲/.test(text) || /思维导图/.test(docType)) {
+    cards.push({
+      id: 'structure-card',
+      label: '结构卡',
+      tone: 'structure',
+      meta: 'Structure',
+      title: '结构与节点预览',
+      body: findSectionBody(sections, ['结构', '提纲', '思维导图', '章节']) || '该卡片用于承载层级结构、章节框架和思维导图节点。',
+      points: pickPoints(text, ['节点', '结构', '章节', '层级']).slice(0, 5),
+      sources: sourceList.slice(0, 2),
+      raw: text
+    });
+  }
+
+  if (/故事|小说|文案|创作|世界观|角色|剧情/.test(text) || /小说|创作/.test(docType)) {
+    cards.push({
+      id: 'generation-card',
+      label: '生成卡',
+      tone: 'generation',
+      meta: 'Generate',
+      title: '内容生成结果',
+      body: text.slice(0, 360),
+      points: [],
+      sources: sourceList.slice(0, 2),
+      raw: text
+    });
+  }
+
+  if (sourceList.length > 0) {
+    cards.push({
+      id: 'citation-card',
+      label: '引用卡',
+      tone: 'citation',
+      meta: `${sourceList.length} Sources`,
+      title: '参考来源引用',
+      body: '联网搜索和参考资料已整理为引用卡，便于追溯来源和继续核查。',
+      points: sourceList.map((source) => `[${source.id}] ${source.title}`).slice(0, 5),
+      sources: sourceList,
+      raw: sourceList.map((source) => `${source.title} ${source.url}`).join('\n')
+    });
+  }
+
+  return cards;
+}
+
+function splitIntoSections(text) {
+  const matches = [...text.matchAll(/【([^】]+)】([\s\S]*?)(?=【[^】]+】|$)/g)];
+  if (matches.length === 0) {
+    return [{ title: '生成结果', body: text.trim(), raw: text.trim() }];
+  }
+  return matches.map((match) => ({
+    title: match[1].trim(),
+    body: match[2].trim(),
+    raw: match[0].trim()
+  })).filter((section) => section.body);
+}
+
+function inferTitle(sections, fallback) {
+  return sections[0]?.title || fallback;
+}
+
+function inferSectionTitle(sections, keywords) {
+  return sections.find((section) => keywords.some((keyword) => section.title.includes(keyword)))?.title;
+}
+
+function findSectionBody(sections, keywords) {
+  return sections.find((section) => keywords.some((keyword) => section.title.includes(keyword)))?.body;
+}
+
+function pickPoints(text, keywords) {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean);
+  const matched = lines.filter((line) => keywords.some((keyword) => line.includes(keyword)));
+  return (matched.length ? matched : lines).filter((line) => line.length <= 80).slice(0, 6);
+}
+
+function extractSources(text) {
+  const sourceBlock = text.split(/参考来源|来源|References/i).pop() || '';
+  const lines = sourceBlock.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const sources = [];
+  lines.forEach((line) => {
+    const url = line.match(/https?:\/\/\S+/)?.[0]?.replace(/[）)]$/, '');
+    if (!url) {
+      return;
+    }
+    const title = line
+      .replace(/^\d+[.、]\s*/, '')
+      .replace(/-\s*https?:\/\/\S+/, '')
+      .replace(/https?:\/\/\S+/, '')
+      .trim() || '参考来源';
+    sources.push({
+      id: sources.length + 1,
+      title,
+      url,
+      site: safeHost(url),
+      snippet: title
+    });
+  });
+  return sources.slice(0, 5);
+}
+
+function safeHost(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'source';
+  }
+}
+
+async function copyText(text) {
+  await navigator.clipboard?.writeText(text);
+  ElMessage.success('已复制卡片内容');
+}
+
+function askFromCard(card) {
+  inputText.value = `请基于这张${card.label}继续展开：\n${card.raw.slice(0, 500)}`;
+  selectedDocType.value = '智能回答';
+  nextTick(focusComposerInput);
 }
 
 function formatSessionTime(date = new Date()) {
@@ -2257,6 +2643,423 @@ async function confirmDeleteSession(session) {
   background: rgba(14, 165, 233, 0.16);
 }
 
+/* Nexus Midnight: restrained document workspace visual layer */
+.nexus-chat-shell {
+  color: var(--nx-text-soft);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(184, 216, 204, 0.08), transparent 32%),
+    radial-gradient(circle at 80% 12%, rgba(216, 178, 110, 0.06), transparent 28%),
+    linear-gradient(180deg, #0a0d14 0%, var(--nx-bg) 100%);
+}
+
+.aurora {
+  opacity: 0.18;
+  filter: blur(72px);
+}
+
+.aurora-one {
+  background: rgba(184, 216, 204, 0.14);
+}
+
+.aurora-two {
+  background: rgba(216, 178, 110, 0.08);
+}
+
+.aurora-three,
+.stage-bubble,
+.artifact-node {
+  display: none;
+}
+
+.depth-light {
+  background:
+    radial-gradient(circle at 54% calc(14% + var(--scroll-progress) * 18%), rgba(184, 216, 204, 0.05), transparent 30%),
+    radial-gradient(circle at 72% 42%, rgba(216, 178, 110, 0.035), transparent 30%);
+  mix-blend-mode: normal;
+}
+
+.ocean-current {
+  opacity: 0.22;
+  background:
+    linear-gradient(108deg, transparent 0 28%, rgba(184, 216, 204, 0.035) 40%, transparent 55% 100%);
+}
+
+.grid-overlay,
+.node-stage {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+}
+
+.artifact {
+  border-color: rgba(148, 163, 184, 0.12);
+  color: var(--nx-text-faint);
+  background: rgba(17, 23, 34, 0.2);
+  box-shadow: none;
+}
+
+.artifact-doc {
+  opacity: 0.28;
+}
+
+.artifact-line {
+  opacity: 0.22;
+  background: linear-gradient(90deg, transparent, rgba(184, 216, 204, 0.28), transparent);
+  box-shadow: none;
+}
+
+.chat-sidebar {
+  border-right-color: rgba(148, 163, 184, 0.1);
+  background: rgba(8, 10, 15, 0.84);
+}
+
+.brand-mark {
+  color: var(--nx-text);
+  background:
+    linear-gradient(135deg, rgba(184, 216, 204, 0.12), rgba(216, 178, 110, 0.06)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.sidebar-brand strong,
+.chat-topbar h1,
+.section-heading h3,
+.preview-copy h3,
+.folder-docs-head h3,
+.message-row.user .message-bubble,
+.composer textarea {
+  color: var(--nx-text);
+}
+
+.sidebar-brand span,
+.sidebar-section p,
+.session-meta,
+.folder-chip,
+.section-heading p,
+.preview-copy p,
+.folder-card small,
+.folder-doc-item small,
+.hero-subtitle,
+.stage-card span {
+  color: var(--nx-text-muted);
+}
+
+.new-chat {
+  color: var(--nx-text-soft);
+  border-color: rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.new-chat:hover,
+.ghost-action:hover,
+.send-button:hover:not(:disabled) {
+  border-color: rgba(184, 216, 204, 0.18);
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px);
+}
+
+.session-scroll-list::-webkit-scrollbar-thumb,
+.message-viewport::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.session-scroll-list:hover::-webkit-scrollbar-thumb,
+.message-viewport:hover::-webkit-scrollbar-thumb {
+  background: rgba(184, 216, 204, 0.26);
+}
+
+.session-item {
+  color: var(--nx-text-soft);
+}
+
+.session-item.active {
+  border-color: rgba(184, 216, 204, 0.18);
+  background: rgba(184, 216, 204, 0.08);
+  box-shadow: inset 2px 0 0 rgba(184, 216, 204, 0.7);
+}
+
+.pin-badge,
+.eyebrow,
+.hero-kicker,
+.section-heading span,
+.prompt-card span,
+.stage-card small,
+.folder-card span,
+.thinking i {
+  color: var(--nx-accent);
+}
+
+.thinking i {
+  background: var(--nx-accent);
+}
+
+.chat-topbar {
+  border-bottom-color: var(--nx-border-soft);
+  background: linear-gradient(180deg, rgba(8, 10, 15, 0.78), rgba(8, 10, 15, 0));
+}
+
+.status-pill {
+  color: var(--nx-accent-strong);
+  border-color: rgba(184, 216, 204, 0.16);
+  background: rgba(184, 216, 204, 0.08);
+}
+
+.hero-stage::before {
+  background:
+    radial-gradient(circle at 50% 52%, rgba(184, 216, 204, 0.06), transparent 40%),
+    radial-gradient(circle at 58% 48%, rgba(216, 178, 110, 0.045), transparent 46%);
+  filter: blur(10px);
+}
+
+.hero-copy h2 {
+  color: var(--nx-text);
+  font-size: clamp(44px, 6vw, 74px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  text-shadow: none;
+}
+
+.primary-cta,
+.secondary-cta {
+  border-color: rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.primary-cta {
+  color: #08110f;
+  background: var(--nx-accent);
+}
+
+.secondary-cta {
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.primary-cta:hover,
+.secondary-cta:hover {
+  border-color: rgba(184, 216, 204, 0.24);
+  box-shadow: var(--nx-shadow-card);
+  transform: translateY(-2px);
+}
+
+.ocean-stage {
+  min-height: 440px;
+}
+
+.knowledge-core {
+  width: 220px;
+  height: 286px;
+  border-color: rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  color: var(--nx-text);
+  font-size: 24px;
+  background:
+    linear-gradient(180deg, rgba(244, 241, 234, 0.08), rgba(244, 241, 234, 0.015)),
+    var(--nx-surface);
+  box-shadow: var(--nx-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.knowledge-core::before,
+.knowledge-core::after {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  height: 1px;
+  content: "";
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.knowledge-core::before {
+  top: 84px;
+  box-shadow:
+    0 34px 0 rgba(148, 163, 184, 0.14),
+    0 68px 0 rgba(148, 163, 184, 0.1);
+}
+
+.knowledge-core::after {
+  bottom: 52px;
+  width: 42%;
+  background: var(--nx-warm);
+}
+
+.knowledge-core i {
+  display: none;
+}
+
+.stage-card,
+.prompt-card,
+.mindmap-preview,
+.folder-hero,
+.folder-docs,
+.message-bubble,
+.composer,
+.folder-card,
+.folder-doc-item {
+  border-color: rgba(148, 163, 184, 0.12);
+  background: rgba(17, 23, 34, 0.72);
+  box-shadow: none;
+}
+
+.stage-card {
+  border-radius: 18px;
+}
+
+.stage-card-main {
+  left: 8%;
+  right: 8%;
+  bottom: 16px;
+}
+
+.stage-card-left,
+.stage-card-right {
+  top: 62px;
+}
+
+.prompt-card {
+  min-height: 168px;
+  background: rgba(17, 23, 34, 0.72);
+}
+
+.prompt-card::after {
+  width: 10px;
+  height: 10px;
+  right: 18px;
+  top: 18px;
+  border: 0;
+  background: var(--nx-warm);
+  opacity: 0.55;
+}
+
+.prompt-card:hover,
+.feature-card.is-visible:hover,
+.folder-card:hover,
+.folder-card.active {
+  border-color: rgba(184, 216, 204, 0.22);
+  background: rgba(22, 29, 42, 0.86);
+  box-shadow: none;
+  transform: translateY(-2px);
+}
+
+.prompt-card strong,
+.folder-card strong {
+  color: var(--nx-text);
+}
+
+.prompt-card small,
+.folder-hero p,
+.folder-empty,
+.thinking,
+.message-content {
+  color: var(--nx-text-soft);
+}
+
+.node-stage {
+  border-color: rgba(148, 163, 184, 0.12);
+  background-color: rgba(8, 10, 15, 0.32);
+}
+
+.node-stage::before,
+.node-stage::after {
+  background: linear-gradient(90deg, transparent, rgba(184, 216, 204, 0.24), transparent);
+}
+
+.map-node {
+  color: var(--nx-text-soft);
+  border-color: rgba(148, 163, 184, 0.14);
+  background: rgba(17, 23, 34, 0.78);
+  box-shadow: none;
+}
+
+.map-center {
+  color: #08110f;
+  background: var(--nx-accent);
+}
+
+.folder-card.active {
+  border-color: rgba(184, 216, 204, 0.26);
+}
+
+.folder-doc-item:hover {
+  border-color: rgba(184, 216, 204, 0.2);
+  background: var(--nx-surface-hover);
+  transform: translateX(2px);
+}
+
+.avatar {
+  color: #08110f;
+  background: var(--nx-accent);
+}
+
+.message-row.user .avatar {
+  color: var(--nx-text-soft);
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.message-row.user .message-bubble {
+  border-color: rgba(184, 216, 204, 0.18);
+  background: linear-gradient(135deg, rgba(184, 216, 204, 0.18), rgba(184, 216, 204, 0.08));
+}
+
+.composer {
+  border-color: rgba(148, 163, 184, 0.16);
+  border-radius: 22px;
+  background: rgba(13, 17, 23, 0.88);
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.composer:focus-within {
+  border-color: rgba(184, 216, 204, 0.28);
+  background: rgba(13, 17, 23, 0.94);
+  box-shadow:
+    0 20px 64px rgba(0, 0, 0, 0.38),
+    0 0 0 1px rgba(184, 216, 204, 0.08);
+}
+
+.composer textarea::placeholder {
+  color: var(--nx-text-faint);
+}
+
+.composer select,
+.web-search-toggle {
+  color: var(--nx-text-muted);
+  border-color: rgba(148, 163, 184, 0.13);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.web-search-toggle:hover,
+.web-search-toggle:has(input:checked) {
+  color: var(--nx-accent-strong);
+  border-color: rgba(184, 216, 204, 0.24);
+}
+
+.web-search-toggle input {
+  accent-color: var(--nx-accent);
+}
+
+.send-button {
+  color: #08110f;
+  background: var(--nx-accent);
+}
+
+.move-dialog-body p,
+.move-dialog-body label {
+  color: var(--nx-text-soft);
+}
+
+.move-dialog-body select {
+  color: var(--nx-text);
+  border-color: rgba(148, 163, 184, 0.18);
+  background: var(--nx-surface-solid);
+}
+
+:deep(.el-dropdown-menu__item:not(.is-disabled):focus),
+:deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
+  color: var(--nx-accent-strong);
+  background: var(--nx-accent-soft);
+}
+
 @keyframes enterSoft {
   from {
     opacity: 0;
@@ -2535,6 +3338,586 @@ async function confirmDeleteSession(session) {
   .feature-card {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Warm generative card workspace final layer */
+.nexus-chat-shell {
+  color: var(--nx-text);
+  background:
+    radial-gradient(circle at 16% 2%, rgba(231, 183, 123, 0.28), transparent 34%),
+    radial-gradient(circle at 82% 4%, rgba(228, 154, 134, 0.18), transparent 30%),
+    linear-gradient(180deg, var(--nx-bg-soft) 0%, var(--nx-bg) 58%, #f2e8dd 100%);
+}
+
+.chat-sidebar {
+  background: rgba(255, 255, 255, 0.58);
+  border-right: 1px solid var(--nx-border);
+  backdrop-filter: var(--nx-blur);
+}
+
+.quick-actions,
+.sidebar-filter {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-mini-label {
+  margin: 2px 0 -10px;
+  color: var(--nx-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quick-actions {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-actions button,
+.sidebar-filter button {
+  min-height: 34px;
+  border: 1px solid var(--nx-border);
+  border-radius: 12px;
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.48);
+  cursor: pointer;
+}
+
+.quick-actions button:hover,
+.sidebar-filter button:hover,
+.sidebar-filter button.active {
+  color: #8b5428;
+  border-color: rgba(221, 153, 96, 0.22);
+  background: var(--nx-accent-soft);
+}
+
+.sidebar-filter p {
+  margin: 8px 0 0;
+  color: var(--nx-text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brand-mark,
+.new-chat,
+.session-item,
+.folder-card,
+.folder-doc-item,
+.prompt-card,
+.mindmap-preview,
+.composer,
+.knowledge-card,
+.citation-card,
+.command-center {
+  border-color: var(--nx-border);
+  background: var(--nx-surface);
+  box-shadow: var(--nx-shadow-card);
+}
+
+.new-chat {
+  color: var(--nx-text);
+  background: var(--nx-surface-strong);
+}
+
+.session-item.active {
+  border-color: rgba(221, 153, 96, 0.22);
+  background: rgba(231, 183, 123, 0.14);
+  box-shadow: inset 2px 0 0 var(--nx-accent-strong);
+}
+
+.chat-topbar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0));
+  border-bottom-color: var(--nx-border-soft);
+}
+
+.eyebrow,
+.section-heading span,
+.hero-kicker,
+.prompt-card span,
+.stage-card small,
+.pin-badge {
+  color: #9b6a32;
+}
+
+.chat-topbar h1,
+.section-heading h3,
+.preview-copy h3,
+.hero-copy h2,
+.workspace-brief h2,
+.knowledge-card h3,
+.citation-card strong,
+.folder-hero h2,
+.folder-docs-head h3 {
+  color: var(--nx-text);
+}
+
+.hero-copy h2 {
+  max-width: 820px;
+  font-size: clamp(48px, 7vw, 86px);
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+}
+
+.hero-subtitle,
+.section-heading p,
+.preview-copy p,
+.workspace-brief p,
+.knowledge-card p,
+.citation-card p {
+  color: var(--nx-text-soft);
+}
+
+.status-pill {
+  color: #8b5428;
+  border-color: rgba(221, 153, 96, 0.18);
+  background: rgba(231, 183, 123, 0.16);
+}
+
+.ocean-stage {
+  min-height: 470px;
+}
+
+.knowledge-core {
+  width: 250px;
+  height: 320px;
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.48)),
+    var(--nx-bg-soft);
+  box-shadow:
+    0 28px 70px rgba(120, 84, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.stage-card {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--nx-border);
+  box-shadow: 0 18px 42px rgba(120, 84, 42, 0.1);
+}
+
+.primary-cta,
+.send-button,
+.state-button {
+  color: #3b2716;
+  border: 0;
+  background: linear-gradient(135deg, #f0c994, var(--nx-accent-strong));
+  box-shadow: 0 14px 30px rgba(191, 126, 63, 0.18);
+}
+
+.secondary-cta {
+  color: var(--nx-text-soft);
+  border-color: var(--nx-border);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.prompt-card {
+  color: var(--nx-text);
+}
+
+.prompt-card::after {
+  background: var(--nx-coral);
+}
+
+.prompt-card:hover,
+.feature-card.is-visible:hover,
+.folder-card:hover,
+.folder-card.active {
+  border-color: rgba(221, 153, 96, 0.24);
+  background: var(--nx-surface-hover);
+  box-shadow: 0 18px 42px rgba(120, 84, 42, 0.1);
+  transform: translateY(-3px);
+}
+
+.message-viewport {
+  padding-bottom: 220px;
+}
+
+.workspace-canvas {
+  display: grid;
+  gap: 22px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 28px 0 38px;
+}
+
+.workspace-brief {
+  display: grid;
+  gap: 10px;
+  padding: 28px;
+  border: 1px solid var(--nx-border);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: var(--nx-shadow-card);
+  backdrop-filter: var(--nx-blur);
+}
+
+.workspace-brief h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 54px);
+  letter-spacing: -0.04em;
+}
+
+.workspace-brief p {
+  max-width: 780px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.generated-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+
+.generated-card-grid,
+.card-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.knowledge-card {
+  display: grid;
+  gap: 12px;
+  min-height: 240px;
+  padding: 22px;
+  border: 1px solid var(--nx-border);
+  border-radius: 26px;
+  animation: cardEnter 420ms ease both;
+  backdrop-filter: var(--nx-blur);
+}
+
+.knowledge-card.summary {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(247, 232, 211, 0.56));
+}
+
+.knowledge-card.insight {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), var(--nx-coral-soft));
+}
+
+.knowledge-card.action {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), var(--nx-green-soft));
+}
+
+.knowledge-card.structure {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), var(--nx-cool-soft));
+}
+
+.knowledge-card.generation,
+.knowledge-card.citation {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), var(--nx-warm-soft));
+}
+
+.knowledge-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 46px rgba(120, 84, 42, 0.12);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--nx-text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.card-head span {
+  color: #9b6a32;
+  text-transform: uppercase;
+}
+
+.knowledge-card h3 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.knowledge-card p {
+  margin: 0;
+  line-height: 1.72;
+}
+
+.knowledge-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--nx-text-soft);
+}
+
+.source-chips,
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.source-chips button,
+.card-actions button,
+.citation-card a {
+  min-height: 30px;
+  border: 1px solid var(--nx-border);
+  border-radius: 999px;
+  color: var(--nx-text-soft);
+  background: rgba(255, 255, 255, 0.52);
+  cursor: pointer;
+}
+
+.card-actions button,
+.citation-card a {
+  padding: 0 10px;
+}
+
+.source-rail {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.source-rail-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--nx-text-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.citation-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--nx-border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: var(--nx-shadow-card);
+}
+
+.citation-card span {
+  color: #9b6a32;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.citation-card a {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  text-decoration: none;
+}
+
+.raw-response {
+  border: 1px solid var(--nx-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.raw-response summary {
+  padding: 14px 18px;
+  color: var(--nx-text-muted);
+  cursor: pointer;
+}
+
+.raw-response pre {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  padding: 0 18px 18px;
+  color: var(--nx-text-soft);
+  white-space: pre-wrap;
+}
+
+.skeleton-card {
+  overflow: hidden;
+  position: relative;
+}
+
+.skeleton-card::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.62) 42%, transparent 64%);
+  animation: shimmer 1.4s linear infinite;
+}
+
+.skeleton-card span,
+.skeleton-card p {
+  display: block;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(120, 102, 84, 0.1);
+}
+
+.skeleton-card strong {
+  color: var(--nx-text-soft);
+}
+
+.composer {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--nx-border);
+}
+
+.composer:focus-within {
+  border-color: rgba(221, 153, 96, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.composer select,
+.web-search-toggle,
+.card-type-pills button {
+  color: var(--nx-text-soft);
+  border: 1px solid var(--nx-border);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.card-type-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-type-pills button {
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.command-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+  background: rgba(70, 52, 34, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.command-center {
+  width: min(720px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--nx-border);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 28px 90px rgba(80, 52, 24, 0.16);
+  backdrop-filter: var(--nx-blur);
+}
+
+.command-search {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--nx-border-soft);
+}
+
+.command-search span {
+  padding: 6px 9px;
+  border-radius: 10px;
+  color: #8b5428;
+  background: var(--nx-accent-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.command-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--nx-text);
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+}
+
+.command-list {
+  display: grid;
+  max-height: 440px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.command-list button {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 2px 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 16px;
+  color: var(--nx-text);
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.command-list button:hover {
+  background: rgba(231, 183, 123, 0.16);
+}
+
+.command-list button > span {
+  grid-row: span 2;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 12px;
+  color: #8b5428;
+  background: var(--nx-accent-soft);
+  font-weight: 800;
+}
+
+.command-list small {
+  color: var(--nx-text-muted);
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1100px) {
+  .generated-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .source-rail {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .generated-card-grid,
+  .card-skeleton-grid,
+  .source-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-wrap {
+    bottom: 14px;
   }
 }
 </style>

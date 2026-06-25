@@ -15,7 +15,7 @@
           type="button"
           @click="navigateHome('chat')"
         >
-          AI 对话
+          工作台
         </button>
         <button
           :class="['nav-item', { active: activeNav === 'folders' }]"
@@ -30,6 +30,9 @@
           @click="$router.push('/history')"
         >
           历史记录
+        </button>
+        <button class="command-trigger" type="button" @click="openCommandCenter">
+          Ctrl K
         </button>
       </nav>
     </el-header>
@@ -60,5 +63,9 @@ const activeNav = computed(() => {
 function navigateHome(view) {
   const query = view === 'home' ? {} : { view };
   router.push({ path: '/', query });
+}
+
+function openCommandCenter() {
+  window.dispatchEvent(new CustomEvent('nexusdoc:open-command-center'));
 }
 </script>
