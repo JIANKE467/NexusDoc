@@ -30,7 +30,7 @@ public class DocumentController {
     }
 
     @GetMapping("/list")
-    public ApiResponse<List<DocumentListVO>> listDocuments(@RequestParam Long userId) {
+    public ApiResponse<List<DocumentListVO>> listDocuments(@RequestParam(required = false) Long userId) {
         return ApiResponse.success(documentService.listDocuments(userId));
     }
 

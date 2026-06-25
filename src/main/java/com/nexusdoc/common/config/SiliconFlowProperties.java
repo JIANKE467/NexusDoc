@@ -14,4 +14,8 @@ public class SiliconFlowProperties {
     private String baseUrl;
 
     private String model;
+
+    private Double temperature;
+
+    private Integer maxTokens;
 }

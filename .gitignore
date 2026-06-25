@@ -24,3 +24,33 @@ Icon?
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# =========================
+# 本地配置与敏感信息
+# =========================
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+config/application-local.yml
+config/application-local.yaml
+
+# =========================
+# 日志文件
+# =========================
+*.log
+logs/
+
+# =========================
+# Java / Maven 构建产物
+# =========================
+target/
+.m2/
+
+# =========================
+# Node / Vite 构建产物
+# =========================
+node_modules/
+frontend/node_modules/
+frontend/dist/

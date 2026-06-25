@@ -1,0 +1,6 @@
+siliconflow:
+  api-key: sk-your-siliconflow-api-key
+  base-url: https://api.siliconflow.cn/v1/chat/completions
+  model: Qwen/Qwen3-8B
+  temperature: 0.3
+  max-tokens: 2048

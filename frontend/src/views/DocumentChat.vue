@@ -41,10 +41,9 @@ import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { getDocumentDetail } from '../api/document';
 import { askDocument, listChatRecords } from '../api/chat';
-import { useUserStore } from '../stores/user';
+import { ANONYMOUS_USER_ID } from '../config/user';
 
 const route = useRoute();
-const userStore = useUserStore();
 const loading = ref(false);
 const asking = ref(false);
 const detail = ref(null);
@@ -73,7 +72,7 @@ async function sendQuestion() {
   asking.value = true;
   try {
     const answer = await askDocument({
-      userId: userStore.user.userId,
+      userId: ANONYMOUS_USER_ID,
       documentId: Number(route.params.id),
       question: question.value
     });

@@ -28,6 +28,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleException(Exception exception) {
+        if (DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+            log.warn("数据库连接不可用：{}", exception.getMessage());
+            return ApiResponse.fail(ResultCode.FAILED, DatabaseExceptionHelper.DATABASE_UNAVAILABLE_MESSAGE);
+        }
         log.error("系统异常", exception);
         return ApiResponse.fail(ResultCode.FAILED, ResultCode.FAILED.getMessage());
     }

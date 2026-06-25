@@ -46,10 +46,9 @@ import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { generateDocument } from '../api/document';
-import { useUserStore } from '../stores/user';
+import { ANONYMOUS_USER_ID } from '../config/user';
 
 const router = useRouter();
-const userStore = useUserStore();
 const loading = ref(false);
 const docTypes = ['通用总结', '会议纪要', '工作任务', '学习资料', '政策公告', '合同初读', '内容创作'];
 const form = reactive({
@@ -67,7 +66,7 @@ async function handleGenerate() {
   loading.value = true;
   try {
     const result = await generateDocument({
-      userId: userStore.user.userId,
+      userId: ANONYMOUS_USER_ID,
       title: form.title,
       docType: form.docType,
       tag: form.tag,

@@ -3,24 +3,23 @@ package com.nexusdoc.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nexusdoc.ai.PromptTemplateFactory;
 import com.nexusdoc.common.exception.BusinessException;
+import com.nexusdoc.common.exception.DatabaseExceptionHelper;
 import com.nexusdoc.dto.DocumentGenerateRequest;
 import com.nexusdoc.entity.ChatRecord;
 import com.nexusdoc.entity.Document;
 import com.nexusdoc.entity.DocumentPackage;
-import com.nexusdoc.entity.User;
 import com.nexusdoc.enums.DocumentTypeEnum;
 import com.nexusdoc.mapper.ChatRecordMapper;
 import com.nexusdoc.mapper.DocumentMapper;
 import com.nexusdoc.mapper.DocumentPackageMapper;
-import com.nexusdoc.mapper.UserMapper;
 import com.nexusdoc.service.AiService;
 import com.nexusdoc.service.DocumentService;
+import com.nexusdoc.service.support.InMemoryDocumentStore;
 import com.nexusdoc.vo.DocumentDetailVO;
 import com.nexusdoc.vo.DocumentListVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -32,64 +31,110 @@ import java.util.List;
 public class DocumentServiceImpl implements DocumentService {
 
     private static final int MAX_CONTENT_LENGTH = 20000;
+    private static final Long ANONYMOUS_USER_ID = 0L;
 
-    private final UserMapper userMapper;
     private final DocumentMapper documentMapper;
     private final DocumentPackageMapper documentPackageMapper;
     private final ChatRecordMapper chatRecordMapper;
     private final AiService aiService;
+    private final InMemoryDocumentStore inMemoryDocumentStore;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public DocumentDetailVO generateDocument(DocumentGenerateRequest request) {
         validateGenerateRequest(request);
-        ensureUserExists(request.getUserId());
+        Long userId = resolveUserId(request.getUserId());
 
         Document document = new Document();
-        document.setUserId(request.getUserId());
+        document.setUserId(userId);
         document.setTitle(request.getTitle().trim());
         document.setDocType(normalizeDocType(request.getDocType()));
         document.setTag(StringUtils.hasText(request.getTag()) ? request.getTag().trim() : null);
         document.setContent(request.getContent().trim());
         document.setCreateTime(LocalDateTime.now());
-        documentMapper.insert(document);
+        boolean inMemoryMode = false;
+        try {
+            documentMapper.insert(document);
+        } catch (RuntimeException exception) {
+            if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                throw exception;
+            }
+            inMemoryMode = true;
+            inMemoryDocumentStore.saveDocument(document);
+            log.warn("数据库未连接，文档生成切换到内存临时存储：{}", exception.getMessage());
+        }
 
-        String prompt = PromptTemplateFactory.buildDocumentPrompt(document.getDocType(), document.getContent());
-        String resultText = aiService.chat(prompt);
+        String resultText;
+        try {
+            String prompt = PromptTemplateFactory.buildDocumentPrompt(document.getDocType(), document.getContent());
+            resultText = aiService.chat(prompt);
+        } catch (RuntimeException exception) {
+            if (inMemoryMode) {
+                inMemoryDocumentStore.deleteDocument(document.getId());
+            } else {
+                rollbackDocument(document.getId());
+            }
+            throw exception;
+        }
 
         DocumentPackage documentPackage = new DocumentPackage();
         documentPackage.setDocumentId(document.getId());
         documentPackage.setResultText(resultText);
         documentPackage.setCreateTime(LocalDateTime.now());
-        documentPackageMapper.insert(documentPackage);
+        if (inMemoryMode) {
+            inMemoryDocumentStore.savePackage(documentPackage);
+        } else {
+            try {
+                documentPackageMapper.insert(documentPackage);
+            } catch (RuntimeException exception) {
+                rollbackDocument(document.getId());
+                throw databaseBusinessException(exception);
+            }
+        }
 
-        log.info("文档生成成功，userId={}, documentId={}", request.getUserId(), document.getId());
+        log.info("文档生成成功，userId={}, documentId={}", userId, document.getId());
         return buildDetailVO(document, documentPackage);
     }
 
     @Override
     public List<DocumentListVO> listDocuments(Long userId) {
-        if (userId == null) {
-            throw new BusinessException("userId 不能为空");
-        }
-        ensureUserExists(userId);
+        Long resolvedUserId = resolveUserId(userId);
 
-        return documentMapper.selectList(new LambdaQueryWrapper<Document>()
-                        .eq(Document::getUserId, userId)
-                        .orderByDesc(Document::getCreateTime))
-                .stream()
-                .map(document -> {
-                    DocumentPackage documentPackage = findPackageByDocumentId(document.getId());
-                    return DocumentListVO.builder()
-                            .documentId(document.getId())
-                            .title(document.getTitle())
-                            .docType(document.getDocType())
-                            .tag(document.getTag())
-                            .summaryPreview(buildPreview(documentPackage))
-                            .createTime(document.getCreateTime())
-                            .build();
-                })
-                .toList();
+        try {
+            return documentMapper.selectList(new LambdaQueryWrapper<Document>()
+                            .eq(Document::getUserId, resolvedUserId)
+                            .orderByDesc(Document::getCreateTime))
+                    .stream()
+                    .map(document -> {
+                        DocumentPackage documentPackage = findPackageByDocumentId(document.getId());
+                        return DocumentListVO.builder()
+                                .documentId(document.getId())
+                                .title(document.getTitle())
+                                .docType(document.getDocType())
+                                .tag(document.getTag())
+                                .summaryPreview(buildPreview(documentPackage))
+                                .createTime(document.getCreateTime())
+                                .build();
+                    })
+                    .toList();
+        } catch (RuntimeException exception) {
+            if (DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                log.warn("数据库未连接，历史记录使用内存临时存储：{}", exception.getMessage());
+                return inMemoryDocumentStore.listDocuments(resolvedUserId).stream()
+                        .map(document -> {
+                            DocumentPackage documentPackage = inMemoryDocumentStore.findPackage(document.getId());
+                            return DocumentListVO.builder()
+                                    .documentId(document.getId())
+                                    .title(document.getTitle())
+                                    .docType(document.getDocType())
+                                    .tag(document.getTag())
+                                    .summaryPreview(buildPreview(documentPackage))
+                                    .createTime(document.getCreateTime())
+                                    .build();
+                        })
+                        .toList();
+            }
+            throw exception;
+        }
     }
 
     @Override
@@ -99,24 +144,31 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteDocument(Long documentId) {
-        getDocumentOrThrow(documentId);
-        documentPackageMapper.delete(new LambdaQueryWrapper<DocumentPackage>()
-                .eq(DocumentPackage::getDocumentId, documentId));
-        chatRecordMapper.delete(new LambdaQueryWrapper<ChatRecord>()
-                .eq(ChatRecord::getDocumentId, documentId));
-        documentMapper.deleteById(documentId);
+        Document document = getDocumentOrThrow(documentId);
+        if (inMemoryDocumentStore.findDocument(document.getId()) != null) {
+            inMemoryDocumentStore.deleteDocument(documentId);
+            log.info("内存文档删除成功，documentId={}", documentId);
+            return;
+        }
+        try {
+            documentPackageMapper.delete(new LambdaQueryWrapper<DocumentPackage>()
+                    .eq(DocumentPackage::getDocumentId, documentId));
+            chatRecordMapper.delete(new LambdaQueryWrapper<ChatRecord>()
+                    .eq(ChatRecord::getDocumentId, documentId));
+            documentMapper.deleteById(documentId);
+        } catch (RuntimeException exception) {
+            throw databaseBusinessException(exception);
+        }
         log.info("文档删除成功，documentId={}", documentId);
     }
 
     private void validateGenerateRequest(DocumentGenerateRequest request) {
         if (request == null
-                || request.getUserId() == null
                 || !StringUtils.hasText(request.getTitle())
                 || !StringUtils.hasText(request.getDocType())
                 || !StringUtils.hasText(request.getContent())) {
-            throw new BusinessException("文档标题、类型、正文和 userId 不能为空");
+            throw new BusinessException("文档标题、类型和正文不能为空");
         }
         if (request.getTitle().trim().length() > 100) {
             throw new BusinessException("文档标题不能超过 100 个字符");
@@ -132,18 +184,24 @@ public class DocumentServiceImpl implements DocumentService {
                 : DocumentTypeEnum.GENERAL_SUMMARY.getDisplayName();
     }
 
-    private void ensureUserExists(Long userId) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
+    private Long resolveUserId(Long userId) {
+        return userId == null ? ANONYMOUS_USER_ID : userId;
     }
 
     private Document getDocumentOrThrow(Long documentId) {
         if (documentId == null) {
             throw new BusinessException("documentId 不能为空");
         }
-        Document document = documentMapper.selectById(documentId);
+        Document document;
+        try {
+            document = documentMapper.selectById(documentId);
+        } catch (RuntimeException exception) {
+            if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                throw exception;
+            }
+            log.warn("数据库未连接，文档详情使用内存临时存储：{}", exception.getMessage());
+            document = inMemoryDocumentStore.findDocument(documentId);
+        }
         if (document == null) {
             throw new BusinessException("文档不存在");
         }
@@ -151,9 +209,16 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     private DocumentPackage findPackageByDocumentId(Long documentId) {
-        return documentPackageMapper.selectOne(new LambdaQueryWrapper<DocumentPackage>()
-                .eq(DocumentPackage::getDocumentId, documentId)
-                .last("LIMIT 1"));
+        try {
+            return documentPackageMapper.selectOne(new LambdaQueryWrapper<DocumentPackage>()
+                    .eq(DocumentPackage::getDocumentId, documentId)
+                    .last("LIMIT 1"));
+        } catch (RuntimeException exception) {
+            if (DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                return inMemoryDocumentStore.findPackage(documentId);
+            }
+            throw databaseBusinessException(exception);
+        }
     }
 
     private DocumentDetailVO buildDetailVO(Document document, DocumentPackage documentPackage) {
@@ -175,5 +240,20 @@ public class DocumentServiceImpl implements DocumentService {
         }
         String resultText = documentPackage.getResultText().replaceAll("\\s+", " ").trim();
         return resultText.length() > 120 ? resultText.substring(0, 120) + "..." : resultText;
+    }
+
+    private BusinessException databaseBusinessException(RuntimeException exception) {
+        if (DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+            return new BusinessException(DatabaseExceptionHelper.DATABASE_UNAVAILABLE_MESSAGE);
+        }
+        throw exception;
+    }
+
+    private void rollbackDocument(Long documentId) {
+        try {
+            documentMapper.deleteById(documentId);
+        } catch (RuntimeException exception) {
+            log.warn("文档生成失败后清理数据库记录失败，documentId={}", documentId, exception);
+        }
     }
 }

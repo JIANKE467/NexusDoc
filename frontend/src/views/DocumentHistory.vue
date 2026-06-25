@@ -3,7 +3,7 @@
     <div class="panel">
       <div class="header">
         <h1 class="page-title">历史记录</h1>
-        <el-button type="primary" @click="$router.push('/create')">处理新文档</el-button>
+        <el-button type="primary" @click="$router.push('/')">处理新文档</el-button>
       </div>
       <el-table :data="documents" v-loading="loading" empty-text="暂无历史记录">
         <el-table-column prop="title" label="标题" min-width="180" />
@@ -29,9 +29,8 @@
 import { onMounted, ref } from 'vue';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { deleteDocument, listDocuments } from '../api/document';
-import { useUserStore } from '../stores/user';
+import { ANONYMOUS_USER_ID } from '../config/user';
 
-const userStore = useUserStore();
 const loading = ref(false);
 const documents = ref([]);
 
@@ -40,7 +39,7 @@ onMounted(loadDocuments);
 async function loadDocuments() {
   loading.value = true;
   try {
-    documents.value = await listDocuments(userStore.user.userId);
+    documents.value = await listDocuments(ANONYMOUS_USER_ID);
   } finally {
     loading.value = false;
   }
