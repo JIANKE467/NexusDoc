@@ -1,56 +1,192 @@
-# =========================
-# macOS 系统文件
-# =========================
+# ============================================================
+# NexusDoc .gitignore
+# Spring Boot + Vue 3/Vite + Maven + pnpm
+#
+# Keep source code, lock files, Docker files, schema SQL, README,
+# and .env.example in Git. Keep local secrets, build outputs,
+# dependency caches, logs, IDE files, and temporary artifacts out.
+# ============================================================
 
-# Finder 隐藏的系统文件 (存储文件夹自定义属性，如图标位置)
+# -----------------------------
+# OS / filesystem noise
+# -----------------------------
 .DS_Store
+**/.DS_Store
 .AppleDouble
 .LSOverride
-
-# 自定义文件夹图标 (文件名带有换行符的 Icon 文件)
 Icon?
-
-# 缩略图和含有资源派生数据的文件
 ._*
-
-# 系统生成的缓存和回收站目录 (常见于外部驱动器或网络驱动器)
 .Spotlight-V100
 .Trashes
 .fseventsd
-
-# 直接连接到电脑的网络共享或外部驱动器相关文件
 .AppleDB
 .AppleDesktop
 Network Trash Folder
 Temporary Items
 .apdisk
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# =========================
-# 本地配置与敏感信息
-# =========================
+# -----------------------------
+# Local environment / secrets
+# -----------------------------
 .env
 .env.*
 !.env.example
+*.local
+*.local.*
+
+# Spring local override files that may contain DB/API credentials
 application-local.yml
 application-local.yaml
+application-*.local.yml
+application-*.local.yaml
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+src/main/resources/application-*.local.yml
+src/main/resources/application-*.local.yaml
 config/application-local.yml
 config/application-local.yaml
 
-# =========================
-# 日志文件
-# =========================
+# Common secret material
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.csr
+id_rsa*
+id_ed25519*
+secrets/
+credentials/
+
+# -----------------------------
+# Logs / runtime dumps
+# -----------------------------
 *.log
 logs/
+log/
+*.pid
+*.seed
+*.hprof
+heapdump*
+hs_err_pid*
+replay_pid*
 
-# =========================
-# Java / Maven 构建产物
-# =========================
+# -----------------------------
+# Java / Maven / Spring Boot
+# -----------------------------
 target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
 .m2/
 
-# =========================
-# Node / Vite 构建产物
-# =========================
+# Maven / Surefire / generated reports
+surefire-reports/
+failsafe-reports/
+dependency-reduced-pom.xml
+release.properties
+
+# -----------------------------
+# Node / pnpm / Vite frontend
+# -----------------------------
 node_modules/
 frontend/node_modules/
 frontend/dist/
+frontend/.vite/
+frontend/.vite-ssg/
+frontend/.turbo/
+frontend/.cache/
+frontend/coverage/
+coverage/
+
+# Local package-manager caches
+.pnpm-store/
+frontend/.pnpm-store/
+.npm/
+.yarn/
+.pnp.*
+
+# Keep lock files tracked for reproducible installs
+!frontend/pnpm-lock.yaml
+!frontend/package-lock.json
+!frontend/yarn.lock
+
+# -----------------------------
+# IDE / editor state
+# -----------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+
+# Editor swap / backup files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.temp
+
+# -----------------------------
+# Test / build artifacts
+# -----------------------------
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+
+# Allow intentionally committed wrapper jars if added later
+!.mvn/wrapper/maven-wrapper.jar
+
+# -----------------------------
+# Local databases / uploaded files / generated exports
+# -----------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db
+*.mv.db
+uploads/
+upload/
+downloads/
+download/
+exports/
+export/
+generated/
+runtime/
+tmp/
+temp/
+
+# Office temporary lock files, not real docs
+~$*.doc*
+~$*.xls*
+~$*.ppt*
+
+# -----------------------------
+# Docker / deployment local state
+# -----------------------------
+docker-data/
+mysql-data/
+data/mysql/
+data/redis/
+.docker/
+
+# -----------------------------
+# Tooling / app-local metadata
+# -----------------------------
+.codex/
+.agents/
