@@ -19,7 +19,7 @@ mybatis-plus:
 
 siliconflow:
   api-key: ${SILICONFLOW_API_KEY:}
-  base-url: ${SILICONFLOW_BASE_URL:https://api.xcode.best/v1/chat/completions}
+  base-url: ${SILICONFLOW_BASE_URL:https://api.xcode.best/v1/chat/completions/v1}
   model: ${SILICONFLOW_MODEL:gpt-5.4}
   temperature: 0.4
   max-tokens: 4096
