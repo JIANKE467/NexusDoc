@@ -27,8 +27,12 @@ siliconflow:
 
 web-search:
   enabled: true
-  api-key: ${WEB_SEARCH_API_KEY:}
-  base-url: ${WEB_SEARCH_BASE_URL:}
-  provider: ${WEB_SEARCH_PROVIDER:generic}
-  max-results: 5
+  provider: serpapi
+  api-key: ${SERPAPI_API_KEY:}
+  base-url: ${SERPAPI_BASE_URL:https://serpapi.com/search}
+  engine: ${SERPAPI_ENGINE:google}
+  hl: ${SERPAPI_HL:zh-cn}
+  gl: ${SERPAPI_GL:cn}
+  num: 5
   timeout-seconds: 10
+  cache-ttl-seconds: 600

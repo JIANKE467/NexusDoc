@@ -1,8 +1,18 @@
 <template>
-  <section class="nexus-chat-shell">
+  <section class="nexus-chat-shell" :style="{ '--scroll-progress': scrollProgress.toFixed(3) }">
     <div class="aurora aurora-one"></div>
     <div class="aurora aurora-two"></div>
+    <div class="aurora aurora-three"></div>
+    <div class="depth-light"></div>
+    <div class="ocean-current"></div>
     <div class="grid-overlay"></div>
+    <div class="floating-artifacts" aria-hidden="true">
+      <span class="artifact artifact-doc">DOC</span>
+      <span class="artifact artifact-node"></span>
+      <span class="artifact artifact-map">JSON</span>
+      <span class="artifact artifact-ai">AI</span>
+      <span class="artifact artifact-line"></span>
+    </div>
 
     <aside :class="['chat-sidebar', { 'is-open': sidebarOpen }]">
       <div class="sidebar-brand">
@@ -131,17 +141,62 @@
         </div>
 
         <div v-else-if="activeMessages.length === 0" class="welcome-panel">
-          <div class="orbital-card">
-            <span class="status-pill">AI Document Intelligence</span>
-            <h2>今天想处理什么文档？</h2>
-            <p>上传、理解、总结、重写，让知识流动起来。把会议纪要、课程资料、政策通知或项目需求粘贴进来，NexusDoc 会把它整理成可继续追问的知识工作包。</p>
+          <section class="hero-stage" aria-labelledby="home-hero-title">
+            <div class="hero-copy">
+              <span class="status-pill">AI Document Intelligence</span>
+              <p class="hero-kicker">AI Document Ocean / 文档知识深海</p>
+              <h2 id="home-hero-title">
+                让每一份文档，<br />
+                都成为可对话的知识。
+              </h2>
+              <p class="hero-subtitle">
+                上传、总结、提问、搜索、生成思维导图，让复杂文档变成可以持续追问的知识工作台。
+              </p>
+              <div class="hero-actions">
+                <button class="primary-cta" type="button" @click="startProcessing">
+                  开始处理文档
+                </button>
+                <button class="secondary-cta" type="button" @click="$router.push('/history')">
+                  查看历史记录
+                </button>
+              </div>
+            </div>
+
+            <div class="ocean-stage" aria-hidden="true">
+              <div class="knowledge-core">
+                <span>文枢</span>
+                <i></i>
+              </div>
+              <div class="stage-card stage-card-main">
+                <small>Document Stream</small>
+                <strong>会议纪要 / 课程资料 / 项目需求</strong>
+                <span>Structured into searchable knowledge</span>
+              </div>
+              <div class="stage-card stage-card-left">
+                <small>Mind Map</small>
+                <strong>节点结构</strong>
+              </div>
+              <div class="stage-card stage-card-right">
+                <small>Web Search</small>
+                <strong>参考来源</strong>
+              </div>
+              <div class="stage-bubble bubble-one"></div>
+              <div class="stage-bubble bubble-two"></div>
+            </div>
+          </section>
+
+          <div class="section-heading">
+            <span>Document Tools</span>
+            <h3>今天想处理什么文档？</h3>
+            <p>从总结、提取、改写，到联网补充与结构生成，把文档沉入知识深海，再浮出清晰答案。</p>
           </div>
 
           <div class="prompt-grid">
             <button
-              v-for="prompt in promptCards"
+              v-for="(prompt, index) in promptCards"
               :key="prompt.title"
-              class="prompt-card"
+              :ref="(el) => setFeatureCardRef(el, index)"
+              :class="['prompt-card', 'feature-card', { 'is-visible': visibleCards[index] }]"
               type="button"
               @click="applyPrompt(prompt)"
             >
@@ -150,6 +205,23 @@
               <small>{{ prompt.description }}</small>
             </button>
           </div>
+
+          <section class="mindmap-preview" aria-label="思维导图预览">
+            <div class="preview-copy">
+              <span class="status-pill">Knowledge Graph Preview</span>
+              <h3>把长文档拆成可探索的知识节点。</h3>
+              <p>
+                NexusDoc 可以把摘要、风险、趋势和参考来源整理成结构化节点，为后续思维导图渲染预留清晰数据。
+              </p>
+            </div>
+            <div class="node-stage" aria-hidden="true">
+              <span class="map-node map-center">中心主题</span>
+              <span class="map-node map-a">原文信息</span>
+              <span class="map-node map-b">网络补充</span>
+              <span class="map-node map-c">合理推断</span>
+              <span class="map-node map-d">行动清单</span>
+            </div>
+          </section>
         </div>
 
         <div v-else class="message-list">
@@ -221,7 +293,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
 import { generateDocument } from '../api/document';
@@ -248,25 +320,58 @@ const promptCards = [
     kicker: 'Summarize',
     title: '总结这份文档',
     description: '提炼摘要、背景、结论和可追踪事项',
+    docType: '通用总结',
     text: '请帮我总结这份文档，输出摘要、核心结论、关键事实和后续行动建议：\n\n'
   },
   {
     kicker: 'Extract',
     title: '提取重点',
     description: '按主题整理关键段落与重要信息',
+    docType: '通用总结',
     text: '请从下面内容中提取重点，并按主题分组整理：\n\n'
   },
   {
     kicker: 'Meeting',
     title: '生成会议纪要',
     description: '自动整理议题、决策、负责人和截止时间',
+    docType: '会议纪要',
     text: '请把下面内容整理成正式会议纪要，包含会议主题、核心讨论、决议事项、负责人和截止时间：\n\n'
   },
   {
     kicker: 'Rewrite',
     title: '改写为正式公文',
     description: '提升表达规范度与结构完整度',
+    docType: '政策公告',
     text: '请把下面内容改写为正式公文风格，语言规范、结构清晰、表达克制：\n\n'
+  },
+  {
+    kicker: 'Mind Map',
+    title: '生成思维导图',
+    description: '输出可渲染的节点 JSON，构成文本框式思维导图。',
+    docType: '思维导图',
+    text: '请根据下面内容生成思维导图 JSON 数据：\n\n'
+  },
+  {
+    kicker: 'Web Search',
+    title: '联网搜索增强',
+    description: '补充原文之外的背景资料，生成带参考来源的回答。',
+    docType: '趋势与隐藏问题分析',
+    enableWebSearch: true,
+    text: '请开启联网搜索，结合网络资料分析下面内容并列出参考来源：\n\n'
+  },
+  {
+    kicker: 'Novel Forge',
+    title: '小说设定生成',
+    description: '构建世界观、人物关系、核心冲突与章节规划。',
+    docType: '小说设定',
+    text: '请基于下面设想生成小说设定集，包含世界观、角色、冲突和章节规划：\n\n'
+  },
+  {
+    kicker: 'Insight',
+    title: '趋势与隐藏问题分析',
+    description: '发现文档背后的风险、趋势和需要追问的问题。',
+    docType: '趋势与隐藏问题分析',
+    text: '请分析下面内容中的隐藏问题、潜在风险和后续趋势：\n\n'
   }
 ];
 
@@ -284,6 +389,12 @@ const selectedFolder = ref(DEFAULT_FOLDER);
 const moveDialogVisible = ref(false);
 const movingSession = ref(null);
 const targetFolder = ref(DEFAULT_FOLDER);
+const scrollProgress = ref(0);
+const featureCards = ref([]);
+const visibleCards = ref([]);
+
+let scrollFrame = 0;
+let featureObserver = null;
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
@@ -314,7 +425,16 @@ onMounted(async () => {
   restoreSessions();
   await loadAiConfig();
   await nextTick();
-  scrollToBottom();
+  initMotionEffects();
+  if (activeMessages.value.length > 0) {
+    scrollToBottom();
+  } else {
+    scrollToTop();
+  }
+});
+
+onUnmounted(() => {
+  teardownMotionEffects();
 });
 
 async function loadAiConfig() {
@@ -324,7 +444,12 @@ async function loadAiConfig() {
 function restoreSessions() {
   const cached = localStorage.getItem(SESSION_STORAGE_KEY);
   sessions.value = cached ? JSON.parse(cached).map(normalizeSession) : [createSessionData('新文档对话')];
-  activeSessionId.value = sessions.value[0]?.id || '';
+  let homeSession = sessions.value.find((session) => session.messages.length === 0);
+  if (!homeSession) {
+    homeSession = createSessionData('新文档对话');
+    sessions.value.unshift(homeSession);
+  }
+  activeSessionId.value = homeSession.id;
   persistSessions();
 }
 
@@ -364,11 +489,93 @@ function switchSession(sessionId) {
 
 function applyPrompt(prompt) {
   inputText.value = prompt.text;
-  selectedDocType.value = prompt.title === '生成会议纪要' ? '会议纪要' : '通用总结';
+  selectedDocType.value = prompt.docType || '通用总结';
+  if (prompt.enableWebSearch) {
+    enableWebSearch.value = true;
+  }
   nextTick(() => {
     const textarea = document.querySelector('.composer textarea');
     textarea?.focus();
     resizeComposer({ target: textarea });
+  });
+}
+
+function startProcessing() {
+  activeNav.value = 'home';
+  nextTick(() => {
+    const textarea = document.querySelector('.composer textarea');
+    textarea?.focus();
+  });
+}
+
+function setFeatureCardRef(el, index) {
+  if (el) {
+    featureCards.value[index] = el;
+  }
+}
+
+function initMotionEffects() {
+  visibleCards.value = promptCards.map(() => false);
+  const viewport = messageViewport.value;
+  if (!viewport) {
+    return;
+  }
+  viewport.addEventListener('scroll', requestScrollProgress, { passive: true });
+  requestScrollProgress();
+
+  if ('IntersectionObserver' in window) {
+    featureObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const index = Number(entry.target.dataset.featureIndex);
+          if (entry.isIntersecting && Number.isInteger(index)) {
+            visibleCards.value[index] = true;
+            featureObserver?.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        root: viewport,
+        threshold: 0.2
+      }
+    );
+    featureCards.value.forEach((card, index) => {
+      if (card) {
+        card.dataset.featureIndex = String(index);
+        featureObserver.observe(card);
+      }
+    });
+  } else {
+    visibleCards.value = promptCards.map(() => true);
+  }
+}
+
+function teardownMotionEffects() {
+  const viewport = messageViewport.value;
+  if (viewport) {
+    viewport.removeEventListener('scroll', requestScrollProgress);
+  }
+  if (scrollFrame) {
+    cancelAnimationFrame(scrollFrame);
+    scrollFrame = 0;
+  }
+  featureObserver?.disconnect();
+  featureObserver = null;
+}
+
+function requestScrollProgress() {
+  if (scrollFrame) {
+    return;
+  }
+  scrollFrame = requestAnimationFrame(() => {
+    const viewport = messageViewport.value;
+    if (!viewport) {
+      scrollProgress.value = 0;
+    } else {
+      const maxScroll = Math.max(viewport.scrollHeight - viewport.clientHeight, 1);
+      scrollProgress.value = Math.min(viewport.scrollTop / maxScroll, 1);
+    }
+    scrollFrame = 0;
   });
 }
 
@@ -469,6 +676,13 @@ function scrollToBottom() {
   }
 }
 
+function scrollToTop() {
+  const viewport = messageViewport.value;
+  if (viewport) {
+    viewport.scrollTop = 0;
+  }
+}
+
 function buildSessionTitle(content) {
   return content.replace(/\s+/g, ' ').slice(0, 18) || '新文档对话';
 }
@@ -509,7 +723,7 @@ function goWorkspaceHome() {
   }
   inputText.value = '';
   activeNav.value = 'home';
-  nextTick(scrollToBottom);
+  nextTick(scrollToTop);
 }
 
 function goAiChat() {
@@ -647,6 +861,111 @@ async function confirmDeleteSession(session) {
     linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
   background-size: 44px 44px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), transparent 78%);
+  transform: translate3d(0, calc(var(--scroll-progress) * -34px), 0);
+  transition: transform 120ms linear;
+}
+
+.aurora-three {
+  width: 420px;
+  height: 420px;
+  left: 48%;
+  bottom: 12%;
+  background: rgba(124, 58, 237, 0.18);
+  animation-delay: -5s;
+}
+
+.depth-light,
+.ocean-current {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.depth-light {
+  background:
+    radial-gradient(circle at 52% calc(18% + var(--scroll-progress) * 34%), rgba(240, 171, 252, 0.16), transparent 22%),
+    radial-gradient(circle at 68% 46%, rgba(34, 211, 238, 0.14), transparent 28%);
+  mix-blend-mode: screen;
+}
+
+.ocean-current {
+  opacity: 0.54;
+  background:
+    linear-gradient(105deg, transparent 0 18%, rgba(34, 211, 238, 0.08) 28%, transparent 42% 100%),
+    linear-gradient(165deg, transparent 0 34%, rgba(124, 58, 237, 0.1) 48%, transparent 64% 100%);
+  filter: blur(1px);
+  transform: translate3d(calc(var(--scroll-progress) * -32px), calc(var(--scroll-progress) * 42px), 0);
+}
+
+.floating-artifacts {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.artifact {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  color: rgba(226, 246, 255, 0.78);
+  background: rgba(15, 23, 42, 0.28);
+  box-shadow: 0 0 34px rgba(34, 211, 238, 0.12);
+  backdrop-filter: blur(16px);
+  animation: driftArtifact 13s ease-in-out infinite;
+}
+
+.artifact-doc {
+  left: 39%;
+  top: 14%;
+  width: 74px;
+  height: 96px;
+  border-radius: 18px;
+  font-size: 12px;
+  transform: rotate(-9deg);
+}
+
+.artifact-map {
+  right: 9%;
+  top: 36%;
+  width: 92px;
+  height: 46px;
+  border-radius: 999px;
+  font-size: 12px;
+  animation-delay: -4s;
+}
+
+.artifact-ai {
+  right: 25%;
+  bottom: 18%;
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  color: #a5f3fc;
+  animation-delay: -7s;
+}
+
+.artifact-node {
+  left: 16%;
+  bottom: 26%;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #22d3ee;
+  filter: blur(0.5px);
+  animation-delay: -2s;
+}
+
+.artifact-line {
+  left: 58%;
+  top: 7%;
+  width: 160px;
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.46), transparent);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.28);
+  animation-delay: -9s;
 }
 
 .chat-sidebar,
@@ -938,9 +1257,241 @@ async function confirmDeleteSession(session) {
 
 .welcome-panel {
   display: grid;
-  gap: 28px;
-  max-width: 980px;
-  margin: 8vh auto 0;
+  gap: 34px;
+  max-width: 1180px;
+  min-height: calc(100vh - 180px);
+  margin: 0 auto;
+  padding: 8vh 0 48px;
+}
+
+.hero-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  gap: 42px;
+  align-items: center;
+  min-height: 560px;
+  isolation: isolate;
+}
+
+.hero-stage::before {
+  position: absolute;
+  inset: 9% 8% 12%;
+  z-index: -1;
+  border-radius: 50%;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 52%, rgba(34, 211, 238, 0.18), transparent 35%),
+    radial-gradient(circle at 45% 46%, rgba(124, 58, 237, 0.16), transparent 44%);
+  filter: blur(8px);
+}
+
+.hero-copy {
+  animation: heroRise 760ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
+  transform: translate3d(0, calc(var(--scroll-progress) * -26px), 0);
+}
+
+.hero-kicker {
+  margin: 0 0 14px;
+  color: #8fb7ff;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hero-copy h2 {
+  max-width: 760px;
+  margin: 0;
+  color: #f8fbff;
+  font-size: 64px;
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-shadow: 0 22px 80px rgba(34, 211, 238, 0.2);
+}
+
+.hero-subtitle {
+  max-width: 660px;
+  margin: 24px 0 0;
+  color: #b8c8dd;
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.primary-cta,
+.secondary-cta {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: 999px;
+  color: #f8fbff;
+  font-weight: 700;
+  background: rgba(15, 23, 42, 0.46);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.primary-cta {
+  color: #05101e;
+  background: linear-gradient(135deg, #67e8f9, #818cf8 58%, #f0abfc);
+  box-shadow: 0 20px 70px rgba(34, 211, 238, 0.25);
+}
+
+.secondary-cta {
+  backdrop-filter: blur(18px);
+}
+
+.primary-cta:hover,
+.secondary-cta:hover {
+  transform: translateY(-3px);
+  border-color: rgba(240, 171, 252, 0.46);
+  box-shadow: 0 24px 80px rgba(124, 58, 237, 0.28);
+}
+
+.ocean-stage {
+  position: relative;
+  min-height: 480px;
+  transform: translate3d(0, calc(var(--scroll-progress) * 34px), 0);
+}
+
+.knowledge-core {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  display: grid;
+  width: 188px;
+  height: 188px;
+  place-items: center;
+  border: 1px solid rgba(165, 243, 252, 0.36);
+  border-radius: 42% 58% 51% 49%;
+  color: #ecfeff;
+  font-size: 28px;
+  font-weight: 800;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.78), transparent 18%),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.92), rgba(124, 58, 237, 0.72));
+  box-shadow:
+    0 0 70px rgba(34, 211, 238, 0.36),
+    inset 0 -18px 42px rgba(3, 7, 18, 0.34);
+  transform: translate(-50%, -50%);
+  animation: coreFloat 7s ease-in-out infinite;
+}
+
+.knowledge-core i {
+  position: absolute;
+  inset: -18px;
+  border: 1px solid rgba(165, 243, 252, 0.18);
+  border-radius: 48%;
+  content: "";
+  animation: slowSpin 18s linear infinite;
+}
+
+.stage-card {
+  position: absolute;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 22px;
+  color: #e5eefc;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.24));
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.32);
+  backdrop-filter: blur(20px);
+  animation: stageFloat 8s ease-in-out infinite;
+}
+
+.stage-card small {
+  color: #67e8f9;
+  font-size: 12px;
+}
+
+.stage-card span {
+  color: #91a3bd;
+  font-size: 12px;
+}
+
+.stage-card-main {
+  left: 13%;
+  right: 4%;
+  bottom: 40px;
+  min-height: 112px;
+}
+
+.stage-card-left {
+  left: 3%;
+  top: 92px;
+  width: 154px;
+  animation-delay: -2.4s;
+}
+
+.stage-card-right {
+  right: 0;
+  top: 138px;
+  width: 160px;
+  animation-delay: -5s;
+}
+
+.stage-bubble {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: rgba(34, 211, 238, 0.14);
+  box-shadow: 0 0 46px rgba(34, 211, 238, 0.16);
+  animation: bubbleDrift 11s ease-in-out infinite;
+}
+
+.bubble-one {
+  left: 22%;
+  bottom: 150px;
+  width: 22px;
+  height: 22px;
+}
+
+.bubble-two {
+  right: 28%;
+  top: 54px;
+  width: 14px;
+  height: 14px;
+  animation-delay: -5s;
+}
+
+.section-heading {
+  display: grid;
+  gap: 10px;
+  max-width: 780px;
+}
+
+.section-heading span,
+.preview-copy .status-pill {
+  width: fit-content;
+}
+
+.section-heading span {
+  color: #67e8f9;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.section-heading h3,
+.preview-copy h3 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.section-heading p,
+.preview-copy p {
+  margin: 0;
+  color: #9fb0c8;
+  line-height: 1.8;
 }
 
 .orbital-card {
@@ -993,26 +1544,57 @@ async function confirmDeleteSession(session) {
 .prompt-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .prompt-card {
+  position: relative;
   display: grid;
   gap: 8px;
-  min-height: 158px;
-  padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 22px;
+  min-height: 176px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
   color: #e5eefc;
   text-align: left;
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.42));
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.34)),
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.14), transparent 34%);
   backdrop-filter: blur(18px);
+}
+
+.prompt-card::after {
+  position: absolute;
+  right: -34px;
+  top: -34px;
+  width: 96px;
+  height: 96px;
+  border: 1px solid rgba(240, 171, 252, 0.18);
+  border-radius: 999px;
+  content: "";
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.feature-card {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.feature-card.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 520ms ease, transform 520ms cubic-bezier(0.2, 0.72, 0.22, 1);
 }
 
 .prompt-card:hover {
   transform: translateY(-6px);
   border-color: rgba(103, 232, 249, 0.52);
   box-shadow: 0 24px 54px rgba(14, 165, 233, 0.18);
+}
+
+.feature-card.is-visible:hover {
+  transform: translateY(-7px);
 }
 
 .prompt-card span {
@@ -1027,6 +1609,94 @@ async function confirmDeleteSession(session) {
 .prompt-card small {
   color: #9fb0c8;
   line-height: 1.6;
+}
+
+.mindmap-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 0.78fr) minmax(360px, 1fr);
+  gap: 30px;
+  align-items: center;
+  padding: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 30px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.56), rgba(15, 23, 42, 0.24));
+  box-shadow: 0 32px 100px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(22px);
+}
+
+.node-stage {
+  position: relative;
+  min-height: 280px;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  border-radius: 26px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    rgba(2, 6, 23, 0.24);
+  background-size: 32px 32px;
+  overflow: hidden;
+}
+
+.node-stage::before,
+.node-stage::after {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 72%;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.36), transparent);
+  transform: translate(-50%, -50%) rotate(18deg);
+}
+
+.node-stage::after {
+  transform: translate(-50%, -50%) rotate(-22deg);
+}
+
+.map-node {
+  position: absolute;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
+  color: #e8f8ff;
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 12px 42px rgba(14, 165, 233, 0.14);
+  backdrop-filter: blur(16px);
+}
+
+.map-center {
+  left: 50%;
+  top: 50%;
+  min-height: 56px;
+  padding: 0 22px;
+  color: #05101e;
+  font-weight: 800;
+  background: linear-gradient(135deg, #67e8f9, #c4b5fd);
+  transform: translate(-50%, -50%);
+}
+
+.map-a {
+  left: 12%;
+  top: 18%;
+}
+
+.map-b {
+  right: 13%;
+  top: 20%;
+}
+
+.map-c {
+  left: 14%;
+  bottom: 18%;
+}
+
+.map-d {
+  right: 12%;
+  bottom: 16%;
 }
 
 .folder-view {
@@ -1427,6 +2097,67 @@ async function confirmDeleteSession(session) {
   }
 }
 
+@keyframes heroRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes coreFloat {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate3d(0, 0, 0);
+    border-radius: 42% 58% 51% 49%;
+  }
+  50% {
+    transform: translate(-50%, -50%) translate3d(0, -16px, 0);
+    border-radius: 54% 46% 44% 56%;
+  }
+}
+
+@keyframes slowSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes stageFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes bubbleDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.44;
+  }
+  50% {
+    transform: translate3d(12px, -26px, 0);
+    opacity: 0.9;
+  }
+}
+
+@keyframes driftArtifact {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-4deg);
+  }
+  50% {
+    transform: translate3d(18px, -24px, 0) rotate(5deg);
+  }
+}
+
 @media (max-width: 980px) {
   .nexus-chat-shell {
     grid-template-columns: 1fr;
@@ -1452,6 +2183,28 @@ async function confirmDeleteSession(session) {
   .prompt-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .hero-stage,
+  .mindmap-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-stage {
+    min-height: auto;
+    padding-top: 34px;
+  }
+
+  .hero-copy h2 {
+    font-size: 48px;
+  }
+
+  .ocean-stage {
+    min-height: 360px;
+  }
+
+  .folder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -1470,10 +2223,57 @@ async function confirmDeleteSession(session) {
   .topbar-actions {
     width: 100%;
     justify-content: space-between;
+    overflow-x: auto;
   }
 
   .prompt-grid {
     grid-template-columns: 1fr;
+  }
+
+  .welcome-panel {
+    min-height: auto;
+    padding-top: 28px;
+  }
+
+  .hero-copy h2 {
+    font-size: 38px;
+  }
+
+  .hero-subtitle {
+    font-size: 15px;
+  }
+
+  .ocean-stage {
+    min-height: 300px;
+  }
+
+  .knowledge-core {
+    width: 142px;
+    height: 142px;
+    font-size: 23px;
+  }
+
+  .stage-card-main {
+    left: 0;
+    right: 0;
+    bottom: 14px;
+  }
+
+  .stage-card-left,
+  .stage-card-right {
+    width: 132px;
+  }
+
+  .stage-card-right {
+    top: 84px;
+  }
+
+  .mindmap-preview {
+    padding: 18px;
+  }
+
+  .node-stage {
+    min-height: 260px;
   }
 
   .message-bubble {
@@ -1483,6 +2283,32 @@ async function confirmDeleteSession(session) {
   .composer-tools {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .artifact,
+  .knowledge-core,
+  .knowledge-core i,
+  .stage-card,
+  .stage-bubble,
+  .message-row,
+  .chat-main,
+  .chat-sidebar {
+    animation: none;
+  }
+
+  .hero-copy,
+  .ocean-stage,
+  .grid-overlay,
+  .ocean-current {
+    transform: none;
+  }
+
+  .feature-card {
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

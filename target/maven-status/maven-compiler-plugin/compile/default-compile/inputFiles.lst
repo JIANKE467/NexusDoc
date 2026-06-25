@@ -22,6 +22,7 @@
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/mapper/ChatRecordMapper.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/mapper/DocumentMapper.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/mapper/DocumentPackageMapper.java
+/Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/search/SerpApiSearchResponse.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/AiService.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/ChatService.java
 /Users/freeforest/Java课程设计/NexusDoc/src/main/java/com/nexusdoc/service/DocumentService.java

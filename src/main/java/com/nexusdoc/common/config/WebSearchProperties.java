@@ -15,9 +15,17 @@ public class WebSearchProperties {
 
     private String baseUrl;
 
+    private String engine;
+
+    private String hl;
+
+    private String gl;
+
     private String provider;
 
-    private Integer maxResults;
+    private Integer num;
 
     private Integer timeoutSeconds;
+
+    private Integer cacheTtlSeconds;
 }

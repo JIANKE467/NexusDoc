@@ -1,14 +1,12 @@
 package com.nexusdoc.service.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexusdoc.common.config.WebSearchProperties;
 import com.nexusdoc.common.exception.BusinessException;
+import com.nexusdoc.search.SerpApiSearchResponse;
 import com.nexusdoc.service.WebSearchService;
 import com.nexusdoc.vo.WebSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -18,22 +16,24 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class WebSearchServiceImpl implements WebSearchService {
 
-    private static final int DEFAULT_MAX_RESULTS = 5;
+    private static final int DEFAULT_NUM = 5;
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
+    private static final int DEFAULT_CACHE_TTL_SECONDS = 600;
 
     private final WebSearchProperties webSearchProperties;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Map<String, CacheEntry> searchCache = new ConcurrentHashMap<>();
 
     @Override
     public List<WebSearchResultVO> search(String query) {
@@ -46,16 +46,24 @@ public class WebSearchServiceImpl implements WebSearchService {
         validateConfig();
 
         try {
+            String normalizedQuery = query.trim();
+            String cacheKey = buildCacheKey(normalizedQuery);
+            CacheEntry cacheEntry = searchCache.get(cacheKey);
+            if (cacheEntry != null && !cacheEntry.isExpired()) {
+                log.info("联网搜索命中缓存，resultCount={}", cacheEntry.results().size());
+                return cacheEntry.results();
+            }
+
             log.info("开始执行联网搜索，provider={}", webSearchProperties.getProvider());
-            String responseBody = buildRestClient()
+            SerpApiSearchResponse response = buildRestClient()
                     .get()
-                    .uri(buildSearchUri(query.trim()))
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + webSearchProperties.getApiKey())
-                    .header("X-API-Key", webSearchProperties.getApiKey())
+                    .uri(buildSearchUri(normalizedQuery))
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(String.class);
-            List<WebSearchResultVO> results = parseResults(responseBody);
+                    .body(SerpApiSearchResponse.class);
+            List<WebSearchResultVO> results = parseResults(response);
+            searchCache.put(cacheKey, new CacheEntry(List.copyOf(results),
+                    Instant.now().plusSeconds(cacheTtlSeconds())));
             log.info("联网搜索完成，resultCount={}", results.size());
             return results;
         } catch (BusinessException exception) {
@@ -76,92 +84,61 @@ public class WebSearchServiceImpl implements WebSearchService {
     }
 
     private URI buildSearchUri(String query) {
-        String baseUrl = webSearchProperties.getBaseUrl().trim();
-        if (baseUrl.contains("{query}")) {
-            return URI.create(baseUrl.replace("{query}", UriComponentsBuilder
-                    .fromPath(query).build().encode().toUriString()));
-        }
-        return UriComponentsBuilder.fromUriString(baseUrl)
+        return UriComponentsBuilder.fromUriString(webSearchProperties.getBaseUrl().trim())
+                .queryParam("engine", defaultText(webSearchProperties.getEngine(), "google"))
                 .queryParam("q", query)
-                .queryParam("query", query)
-                .queryParam("count", maxResults())
-                .queryParam("max_results", maxResults())
-                .build(true)
+                .queryParam("api_key", webSearchProperties.getApiKey())
+                .queryParam("hl", defaultText(webSearchProperties.getHl(), "zh-cn"))
+                .queryParam("gl", defaultText(webSearchProperties.getGl(), "cn"))
+                .queryParam("num", num())
+                .build()
+                .encode()
                 .toUri();
     }
 
-    private List<WebSearchResultVO> parseResults(String responseBody) throws Exception {
-        if (!StringUtils.hasText(responseBody)) {
-            return List.of();
-        }
-        JsonNode root = objectMapper.readTree(responseBody);
-        JsonNode resultArray = firstArray(root,
-                "/results",
-                "/items",
-                "/data",
-                "/organic_results",
-                "/webPages/value");
-        if (resultArray == null || !resultArray.isArray()) {
+    private List<WebSearchResultVO> parseResults(SerpApiSearchResponse response) {
+        if (response == null || response.getOrganicResults() == null
+                || response.getOrganicResults().isEmpty()) {
             return List.of();
         }
 
         List<WebSearchResultVO> results = new ArrayList<>();
         int index = 1;
-        for (JsonNode item : resultArray) {
+        for (SerpApiSearchResponse.OrganicResult item : response.getOrganicResults()) {
             WebSearchResultVO result = toResult(item, index);
             if (StringUtils.hasText(result.getTitle()) || StringUtils.hasText(result.getSnippet())) {
                 results.add(result);
                 index++;
             }
-            if (results.size() >= maxResults()) {
+            if (results.size() >= num()) {
                 break;
             }
         }
         return results;
     }
 
-    private WebSearchResultVO toResult(JsonNode item, int index) {
+    private WebSearchResultVO toResult(SerpApiSearchResponse.OrganicResult item, int index) {
         WebSearchResultVO result = new WebSearchResultVO();
-        result.setIndex(index);
-        result.setTitle(firstText(item, "title", "name", "heading"));
-        result.setUrl(firstText(item, "url", "link", "href"));
-        result.setSnippet(firstText(item, "snippet", "description", "content", "summary"));
-        result.setSource(firstText(item, "source", "site", "displayLink"));
+        result.setIndex(item.getPosition() == null ? index : item.getPosition());
+        result.setTitle(blankToEmpty(item.getTitle()));
+        result.setUrl(blankToEmpty(item.getLink()));
+        result.setSnippet(blankToEmpty(item.getSnippet()));
+        result.setSource(blankToEmpty(item.getSource()));
         return result;
-    }
-
-    private JsonNode firstArray(JsonNode root, String... pointers) {
-        for (String pointer : pointers) {
-            JsonNode node = root.at(pointer);
-            if (node != null && node.isArray()) {
-                return node;
-            }
-        }
-        return null;
-    }
-
-    private String firstText(JsonNode item, String... fieldNames) {
-        for (String fieldName : fieldNames) {
-            JsonNode value = item.path(fieldName);
-            if (value.isTextual() && StringUtils.hasText(value.asText())) {
-                return value.asText();
-            }
-        }
-        return "";
     }
 
     private void validateConfig() {
         if (!StringUtils.hasText(webSearchProperties.getApiKey())) {
-            throw new BusinessException("网络搜索 API Key 未配置，请检查后端运行环境变量 WEB_SEARCH_API_KEY");
+            throw new BusinessException("SerpApi API Key 未配置，请检查后端运行环境变量 SERPAPI_API_KEY");
         }
         if (!StringUtils.hasText(webSearchProperties.getBaseUrl())) {
-            throw new BusinessException("网络搜索接口地址未配置，请检查 web-search.base-url");
+            throw new BusinessException("SerpApi 搜索接口地址未配置，请检查 web-search.base-url");
         }
     }
 
-    private int maxResults() {
-        Integer maxResults = webSearchProperties.getMaxResults();
-        return maxResults == null || maxResults <= 0 ? DEFAULT_MAX_RESULTS : maxResults;
+    private int num() {
+        Integer num = webSearchProperties.getNum();
+        return num == null || num <= 0 ? DEFAULT_NUM : num;
     }
 
     private int timeoutSeconds() {
@@ -169,5 +146,38 @@ public class WebSearchServiceImpl implements WebSearchService {
         return timeoutSeconds == null || timeoutSeconds <= 0
                 ? DEFAULT_TIMEOUT_SECONDS
                 : timeoutSeconds;
+    }
+
+    private int cacheTtlSeconds() {
+        Integer cacheTtlSeconds = webSearchProperties.getCacheTtlSeconds();
+        return cacheTtlSeconds == null || cacheTtlSeconds <= 0
+                ? DEFAULT_CACHE_TTL_SECONDS
+                : cacheTtlSeconds;
+    }
+
+    private String buildCacheKey(String query) {
+        return String.join("|",
+                defaultText(webSearchProperties.getProvider(), "serpapi"),
+                defaultText(webSearchProperties.getBaseUrl(), ""),
+                defaultText(webSearchProperties.getEngine(), "google"),
+                defaultText(webSearchProperties.getHl(), "zh-cn"),
+                defaultText(webSearchProperties.getGl(), "cn"),
+                String.valueOf(num()),
+                query.toLowerCase());
+    }
+
+    private String defaultText(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private String blankToEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    private record CacheEntry(List<WebSearchResultVO> results, Instant expireAt) {
+
+        private boolean isExpired() {
+            return Instant.now().isAfter(expireAt);
+        }
     }
 }

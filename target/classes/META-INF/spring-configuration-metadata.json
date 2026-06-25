@@ -53,12 +53,32 @@
       "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
     },
     {
+      "name": "web-search.cache-ttl-seconds",
+      "type": "java.lang.Integer",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
       "name": "web-search.enabled",
       "type": "java.lang.Boolean",
       "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
     },
     {
-      "name": "web-search.max-results",
+      "name": "web-search.engine",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.gl",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.hl",
+      "type": "java.lang.String",
+      "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
+    },
+    {
+      "name": "web-search.num",
       "type": "java.lang.Integer",
       "sourceType": "com.nexusdoc.common.config.WebSearchProperties"
     },
