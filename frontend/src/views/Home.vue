@@ -529,7 +529,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
-import { generateDocument } from '../api/document';
+import { generateDocument, listDocuments, streamGenerateDocument } from '../api/document';
 import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
 import { ANONYMOUS_USER_ID } from '../config/user';
 import {
@@ -1190,29 +1190,34 @@ async function sendMessage() {
   scrollToBottom();
 
   try {
-    const result = file
-      ? await generateFromFile({
-          file,
-          userId: ANONYMOUS_USER_ID,
-          mode: selectedDocType.value,
-          enableWebSearch: true,
-          cardTypes: quickCardPills.map((pill) => pill.label).join('、'),
-          requirement
-        })
-      : await generateDocument({
+    if (file) {
+      const result = await generateFromFile({
+        file,
+        userId: ANONYMOUS_USER_ID,
+        mode: selectedDocType.value,
+        enableWebSearch: true,
+        cardTypes: quickCardPills.map((pill) => pill.label).join('、'),
+        requirement
+      });
+      await revealAssistantMessage(assistantMessage, buildFileMcpResultText(result) || 'AI 暂未返回内容。');
+    } else {
+      await generateTextWithStream({
+        assistantMessage,
+        payload: {
           userId: ANONYMOUS_USER_ID,
           title: session.title,
           docType: selectedDocType.value,
           tag: 'AI 对话',
           content: requirement,
           enableWebSearch: true
-        });
-    const resultText = file ? buildFileMcpResultText(result) : result.resultText;
-    await revealAssistantMessage(assistantMessage, resultText || 'AI 暂未返回内容。');
+        }
+      });
+    }
     if (file) {
       selectedUploadStatus.value = '已生成';
       selectedUploadFile.value = null;
     }
+    await refreshAfterGeneration(session);
   } catch (error) {
     assistantMessage.loading = false;
     assistantMessage.content = error.message || 'AI 服务暂时不可用，请稍后重试。';
@@ -1225,6 +1230,92 @@ async function sendMessage() {
     await nextTick();
     scrollToBottom();
   }
+}
+
+async function generateTextWithStream({ assistantMessage, payload }) {
+  let streamedText = '';
+  const streamedSources = [];
+  let streamError = null;
+
+  try {
+    const donePayload = await streamGenerateDocument(payload, {
+      onStart: () => {
+        assistantMessage.loading = true;
+        assistantMessage.content = '';
+      },
+      onDelta: (delta) => {
+        if (!delta) {
+          return;
+        }
+        streamedText += delta;
+        assistantMessage.loading = false;
+        assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+        scrollToBottom();
+      },
+      onSource: (source) => {
+        if (!source?.url && !source?.title) {
+          return;
+        }
+        streamedSources.push(source);
+        assistantMessage.loading = false;
+        assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+        scrollToBottom();
+      },
+      onWarning: (message) => {
+        ElMessage.warning(message);
+      },
+      onError: (data) => {
+        streamError = new Error(data?.message || '流式生成失败');
+      },
+      onDone: (data) => {
+        if (data?.resultText && !streamedText.trim()) {
+          streamedText = data.resultText;
+          assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+        }
+      }
+    });
+
+    if (streamError) {
+      throw streamError;
+    }
+    if (donePayload?.resultText && !streamedText.trim()) {
+      assistantMessage.content = buildStreamingAssistantContent(donePayload.resultText, streamedSources);
+    }
+    if (!assistantMessage.content.trim()) {
+      assistantMessage.content = 'AI 暂未返回内容。';
+    }
+    assistantMessage.loading = false;
+  } catch (error) {
+    ElMessage.warning('流式生成暂时不可用，已切换为普通生成。');
+    const result = await generateDocument(payload);
+    await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
+  }
+}
+
+function buildStreamingAssistantContent(text, sources = []) {
+  const normalizedText = text || '';
+  if (!sources.length) {
+    return normalizedText;
+  }
+  const sourceLines = sources
+    .slice(0, 5)
+    .map((source, index) => {
+      const title = source.title || source.url || `参考来源 ${index + 1}`;
+      const url = source.url ? ` ${source.url}` : '';
+      return `[${index + 1}] ${title}${url}`;
+    });
+  return `${normalizedText.trim()}\n\n参考来源\n${sourceLines.join('\n')}`.trim();
+}
+
+async function refreshAfterGeneration(session) {
+  session.updatedAt = formatSessionTime();
+  session.updatedAtValue = Date.now();
+  persistSessions();
+  await Promise.allSettled([
+    listDocuments(ANONYMOUS_USER_ID),
+    nextTick()
+  ]);
+  scrollToBottom();
 }
 
 function createMessage(role, content, loading = false) {

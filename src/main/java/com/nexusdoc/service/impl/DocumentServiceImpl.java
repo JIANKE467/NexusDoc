@@ -26,6 +26,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.function.Consumer;
 
 @Slf4j
 @Service
@@ -102,6 +104,83 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         log.info("文档生成成功，userId={}, documentId={}", userId, document.getId());
+        return buildDetailVO(document, documentPackage);
+    }
+
+    @Override
+    public DocumentDetailVO generateDocumentStream(DocumentGenerateRequest request,
+                                                   Consumer<String> onDelta,
+                                                   Consumer<WebSearchResultVO> onSource,
+                                                   Consumer<String> onWarning) {
+        validateGenerateRequest(request);
+        Long userId = resolveUserId(request.getUserId());
+
+        Document document = new Document();
+        document.setUserId(userId);
+        document.setTitle(request.getTitle().trim());
+        document.setDocType(normalizeDocType(request.getDocType()));
+        document.setTag(StringUtils.hasText(request.getTag()) ? request.getTag().trim() : null);
+        document.setContent(request.getContent().trim());
+        document.setCreateTime(LocalDateTime.now());
+
+        boolean inMemoryMode = false;
+        try {
+            documentMapper.insert(document);
+        } catch (RuntimeException exception) {
+            if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                throw exception;
+            }
+            inMemoryMode = true;
+            inMemoryDocumentStore.saveDocument(document);
+            log.warn("数据库未连接，流式文档生成切换到内存临时存储：{}", exception.getMessage());
+        }
+
+        String resultText;
+        try {
+            boolean enableWebSearch = true;
+            List<WebSearchResultVO> searchResults = new ArrayList<>();
+            try {
+                searchResults = webSearchService.search(buildSearchQuery(document.getDocType(), document.getContent()));
+                if (onSource != null) {
+                    searchResults.forEach(onSource);
+                }
+            } catch (RuntimeException searchException) {
+                log.warn("联网搜索失败，流式生成继续基于用户内容执行：{}", searchException.getMessage());
+                if (onWarning != null) {
+                    onWarning.accept("联网搜索暂时不可用，已基于当前输入生成。");
+                }
+            }
+            String prompt = PromptTemplateFactory.buildDocumentPrompt(
+                    document.getDocType(),
+                    document.getContent(),
+                    enableWebSearch,
+                    searchResults);
+            resultText = aiService.streamGenerate(prompt, onDelta);
+        } catch (RuntimeException exception) {
+            if (inMemoryMode) {
+                inMemoryDocumentStore.deleteDocument(document.getId());
+            } else {
+                rollbackDocument(document.getId());
+            }
+            throw exception;
+        }
+
+        DocumentPackage documentPackage = new DocumentPackage();
+        documentPackage.setDocumentId(document.getId());
+        documentPackage.setResultText(resultText);
+        documentPackage.setCreateTime(LocalDateTime.now());
+        if (inMemoryMode) {
+            inMemoryDocumentStore.savePackage(documentPackage);
+        } else {
+            try {
+                documentPackageMapper.insert(documentPackage);
+            } catch (RuntimeException exception) {
+                rollbackDocument(document.getId());
+                throw databaseBusinessException(exception);
+            }
+        }
+
+        log.info("流式文档生成成功，userId={}, documentId={}", userId, document.getId());
         return buildDetailVO(document, documentPackage);
     }
 
