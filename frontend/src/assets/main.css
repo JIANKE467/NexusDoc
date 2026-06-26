@@ -46,7 +46,7 @@
   --nx-blur: blur(18px);
   color: var(--nx-text);
   background: var(--nx-bg);
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
@@ -58,6 +58,7 @@ body,
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -136,6 +137,11 @@ a {
   align-items: center;
 }
 
+.mobile-nav-toggle,
+.mobile-nav-mask {
+  display: none;
+}
+
 .nav-item {
   height: 38px;
   padding: 0 14px;
@@ -187,31 +193,130 @@ a {
 }
 
 @media (max-width: 768px) {
+  :root {
+    --mobile-header-height: 60px;
+  }
+
+  html,
+  body,
+  #app {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .app-shell {
+    height: var(--app-height, 100dvh);
+    min-height: var(--app-height, 100dvh);
+  }
+
+  .app-main {
+    overflow: hidden;
+  }
+
   .topbar {
-    padding: 0 16px;
+    height: calc(var(--mobile-header-height) + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 14px 0;
+    background: rgba(5, 7, 11, 0.92);
+    z-index: 120;
   }
 
   .brand {
-    font-size: 17px;
+    min-width: 0;
+    font-size: 16px;
     white-space: nowrap;
-    grid-template-columns: auto;
+    grid-template-columns: 34px minmax(0, auto);
+    gap: 2px 10px;
   }
 
-  .brand::before,
+  .brand::before {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+  }
+
   .brand::after {
-    display: none;
+    display: block;
+    overflow: hidden;
+    max-width: 150px;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .nav {
-    gap: 4px;
-    min-width: 0;
-    overflow-x: auto;
+    display: none;
   }
 
-  .nav-item {
+  .mobile-nav-toggle {
+    display: inline-flex;
+    width: 42px;
+    height: 42px;
     flex: 0 0 auto;
-    padding: 0 10px;
-    font-size: 13px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid rgba(246, 200, 111, 0.2);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .mobile-nav-toggle span {
+    width: 18px;
+    height: 2px;
+    border-radius: 999px;
+    background: rgba(255, 247, 231, 0.88);
+  }
+
+  .mobile-nav-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: block;
+    padding: calc(70px + env(safe-area-inset-top)) 14px 14px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .mobile-nav-panel {
+    display: grid;
+    gap: 8px;
+    width: min(76vw, 300px);
+    margin-left: auto;
+    padding: 12px;
+    border: 1px solid rgba(246, 200, 111, 0.18);
+    border-radius: 22px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+      rgba(10, 12, 18, 0.96);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
+  }
+
+  .mobile-nav-item {
+    height: 44px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    color: rgba(248, 241, 228, 0.78);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 760;
+    text-align: left;
+    padding: 0 14px;
+    background: transparent;
+  }
+
+  .mobile-nav-item.active {
+    color: #1a1208;
+    border-color: rgba(246, 200, 111, 0.42);
+    background: linear-gradient(135deg, #ffe1a3, #d89531);
+  }
+
+  .mobile-nav-item:active,
+  .mobile-nav-toggle:active {
+    transform: scale(0.98);
   }
 }
 
@@ -259,7 +364,7 @@ a {
 }
 
 .el-dropdown__popper.nexus-dropdown .el-dropdown-menu {
-  padding: 6px !important;
+  padding: 8px !important;
 }
 
 .el-dropdown__popper.nexus-dropdown .el-popper__arrow::before {
@@ -268,16 +373,21 @@ a {
 }
 
 .el-dropdown__popper.nexus-dropdown .el-dropdown-menu__item {
-  height: 32px;
-  border-radius: 10px !important;
-  color: var(--nx-text-soft) !important;
-  font-size: 13px;
+  min-height: 40px;
+  height: 40px;
+  margin: 2px 0;
+  border-radius: 12px !important;
+  color: rgba(255, 247, 231, 0.86) !important;
+  font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 40px;
 }
 
 .el-dropdown__popper.nexus-dropdown .el-dropdown-menu__item:not(.is-disabled):focus,
 .el-dropdown__popper.nexus-dropdown .el-dropdown-menu__item:not(.is-disabled):hover {
-  color: var(--nx-gold) !important;
-  background: var(--nx-accent-soft) !important;
+  color: rgba(255, 247, 231, 0.96) !important;
+  background: rgba(246, 200, 111, 0.1) !important;
 }
 
 .el-dropdown__popper.nexus-dropdown .el-dropdown-menu__item.danger {
@@ -341,4 +451,74 @@ a {
   border: 1px solid var(--nx-border) !important;
   background: var(--nx-surface-solid) !important;
   box-shadow: none !important;
+}
+
+.mode-select-dropdown.el-select__popper,
+.el-popper.mode-select-dropdown {
+  z-index: 4000 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(246, 200, 111, 0.2) !important;
+  border-radius: 20px !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+    rgba(17, 19, 26, 0.98) !important;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.mode-select-dropdown .el-select-dropdown {
+  background: transparent !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__wrap,
+.mode-select-dropdown .el-scrollbar,
+.mode-select-dropdown .el-scrollbar__view {
+  background: transparent !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__list {
+  padding: 10px 8px !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__item {
+  min-height: 42px !important;
+  height: 42px !important;
+  margin: 2px 0 !important;
+  padding: 0 14px !important;
+  border-radius: 12px !important;
+  color: rgba(255, 247, 231, 0.88) !important;
+  font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 42px !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__item.is-hovering,
+.mode-select-dropdown .el-select-dropdown__item:hover {
+  color: rgba(255, 247, 231, 0.98) !important;
+  background: rgba(246, 200, 111, 0.1) !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__item.is-selected,
+.mode-select-dropdown .el-select-dropdown__item.selected {
+  color: rgba(255, 248, 234, 0.99) !important;
+  font-weight: 750 !important;
+  background:
+    linear-gradient(90deg, rgba(246, 200, 111, 0.2), rgba(246, 200, 111, 0.1)) !important;
+}
+
+.mode-select-dropdown .el-select-dropdown__item.is-selected::after {
+  float: right;
+  content: "✓";
+  color: rgba(246, 200, 111, 0.88);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.mode-select-dropdown .el-popper__arrow::before {
+  border-color: rgba(246, 200, 111, 0.2) !important;
+  background: rgba(17, 19, 26, 0.98) !important;
 }
