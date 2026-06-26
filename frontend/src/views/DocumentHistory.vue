@@ -211,22 +211,45 @@ function estimateCardCount(row) {
 }
 
 .history-workspace-card {
+  position: relative;
   display: grid;
   gap: 14px;
-  min-height: 260px;
-  padding: 20px;
-  border: 1px solid var(--nx-border);
-  border-radius: 24px;
+  min-height: 240px;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(246, 200, 111, 0.28);
+  border-radius: 22px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(247, 232, 211, 0.54));
-  box-shadow: var(--nx-shadow-card);
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.12), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    rgba(10, 12, 18, 0.94);
+  box-shadow:
+    0 18px 56px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(10px) saturate(1.02);
+  -webkit-backdrop-filter: blur(10px) saturate(1.02);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.history-workspace-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  content: "";
+  opacity: 0.68;
+  background: linear-gradient(90deg, transparent, rgba(246, 200, 111, 0.86), transparent);
 }
 
 .history-workspace-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(221, 153, 96, 0.24);
-  box-shadow: 0 20px 46px rgba(120, 84, 42, 0.12);
+  transform: translateY(-2px);
+  border-color: rgba(246, 200, 111, 0.36);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.14), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0.012)),
+    rgba(12, 14, 20, 0.96);
+  box-shadow:
+    0 22px 64px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .workspace-card-top,
@@ -245,27 +268,36 @@ function estimateCardCount(row) {
   min-height: 28px;
   align-items: center;
   padding: 0 10px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
   border-radius: 999px;
-  color: #8b5428;
-  background: var(--nx-accent-soft);
+  color: rgba(246, 200, 111, 0.86);
+  background: rgba(246, 200, 111, 0.1);
   font-size: 12px;
   font-weight: 800;
 }
 
 .workspace-card-top small {
-  color: var(--nx-text-muted);
+  color: rgba(248, 241, 228, 0.48);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .history-workspace-card h2 {
   margin: 0;
-  color: var(--nx-text);
-  font-size: 22px;
+  color: rgba(255, 247, 231, 0.98);
+  font-size: 21px;
+  line-height: 1.35;
   letter-spacing: -0.02em;
 }
 
 .history-workspace-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
   margin: 0;
-  color: var(--nx-text-soft);
+  color: rgba(248, 241, 228, 0.82);
+  font-size: 14px;
   line-height: 1.72;
 }
 
@@ -277,20 +309,30 @@ function estimateCardCount(row) {
 .workspace-actions button {
   min-height: 34px;
   padding: 0 11px;
-  border: 1px solid var(--nx-border);
-  border-radius: 999px;
-  color: var(--nx-text-soft);
-  background: rgba(255, 255, 255, 0.54);
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 12px;
+  color: rgba(248, 241, 228, 0.74);
+  font-weight: 760;
+  background: rgba(255, 255, 255, 0.035);
   cursor: pointer;
 }
 
 .workspace-actions button:hover {
-  border-color: rgba(221, 153, 96, 0.24);
-  background: rgba(231, 183, 123, 0.16);
+  color: #1a1208;
+  border-color: rgba(246, 200, 111, 0.42);
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
 }
 
 .workspace-actions .danger {
-  color: var(--nx-danger);
+  color: rgba(255, 118, 107, 0.92);
+  border-color: rgba(255, 118, 107, 0.2);
+  background: rgba(255, 118, 107, 0.08);
+}
+
+.workspace-actions .danger:hover {
+  color: #ffe7e5;
+  border-color: rgba(255, 118, 107, 0.36);
+  background: rgba(255, 118, 107, 0.16);
 }
 
 .history-state {
