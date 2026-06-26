@@ -3,10 +3,12 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml* ./
-RUN corepack enable && pnpm install --frozen-lockfile
+# Use npm to install dependencies in the build image to avoid pnpm lockfile incompat
+# issues inside the container environment
+RUN npm set progress=false && npm install --no-audit --no-fund
 
 COPY . .
-RUN pnpm run build
+RUN npm run build
 
 FROM nginx:1.26-alpine AS runtime
 
