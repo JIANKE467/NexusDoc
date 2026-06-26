@@ -386,21 +386,34 @@
                 <span>↑</span>
                 上传文档
               </button>
-              <el-select
-                v-model="selectedDocType"
-                class="mode-select"
-                popper-class="mode-select-dropdown"
-                aria-label="文档类型"
-                :teleported="true"
-                :fit-input-width="false"
-              >
-                <el-option
-                  v-for="item in docTypes"
-                  :key="item"
-                  :label="item"
-                  :value="item"
-                />
-              </el-select>
+              <div ref="modeSelectRef" class="mode-select">
+                <button
+                  :class="['mode-select-trigger', { 'is-open': modeDropdownOpen }]"
+                  type="button"
+                  aria-haspopup="listbox"
+                  :aria-expanded="modeDropdownOpen"
+                  @click.stop="toggleModeDropdown"
+                >
+                  <span class="mode-select-label">{{ currentModeLabel }}</span>
+                  <span class="mode-select-arrow">⌄</span>
+                </button>
+                <transition name="mode-dropdown">
+                  <div v-if="modeDropdownOpen" class="mode-select-menu" role="listbox">
+                    <button
+                      v-for="mode in modeOptions"
+                      :key="mode.value"
+                      :class="['mode-select-option', { 'is-active': mode.value === selectedDocType }]"
+                      type="button"
+                      role="option"
+                      :aria-selected="mode.value === selectedDocType"
+                      @click="selectMode(mode.value)"
+                    >
+                      <span class="mode-option-check">{{ mode.value === selectedDocType ? '✓' : '' }}</span>
+                      <span class="mode-option-text">{{ mode.label }}</span>
+                    </button>
+                  </div>
+                </transition>
+              </div>
               <el-dropdown
                 trigger="click"
                 popper-class="nexus-dropdown card-type-dropdown"
@@ -617,6 +630,8 @@ const scrollProgress = ref(0);
 const featureCards = ref([]);
 const visibleCards = ref([]);
 const fileInput = ref(null);
+const modeSelectRef = ref(null);
+const modeDropdownOpen = ref(false);
 const selectedCard = ref(null);
 const cardDetailVisible = ref(false);
 const selectedUploadFile = ref(null);
@@ -630,6 +645,10 @@ let featureObserver = null;
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
+const modeOptions = computed(() => docTypes.map((item) => ({ label: item, value: item })));
+const currentModeLabel = computed(() => {
+  return modeOptions.value.find((item) => item.value === selectedDocType.value)?.label || '智能回答';
+});
 const latestUserPrompt = computed(() => {
   return [...activeMessages.value].reverse().find((message) => message.role === 'user')?.content || '输入需求后，NexusDoc 会把内容拆成可操作的知识卡片。';
 });
@@ -748,6 +767,7 @@ onMounted(async () => {
   syncActiveNavFromRoute(route.query.view);
   window.visualViewport?.addEventListener('resize', updateAppHeight);
   window.addEventListener('resize', updateAppHeight);
+  document.addEventListener('click', handleModeClickOutside);
   window.addEventListener('nexusdoc:open-command-center', openCommandCenter);
   window.addEventListener('keydown', handleGlobalKeydown);
   await loadAiConfig();
@@ -765,6 +785,7 @@ onUnmounted(() => {
   teardownMotionEffects();
   window.visualViewport?.removeEventListener('resize', updateAppHeight);
   window.removeEventListener('resize', updateAppHeight);
+  document.removeEventListener('click', handleModeClickOutside);
   window.removeEventListener('nexusdoc:open-command-center', openCommandCenter);
   window.removeEventListener('keydown', handleGlobalKeydown);
 });
@@ -1001,10 +1022,32 @@ function closeCommandCenter() {
   commandCenterOpen.value = false;
 }
 
+function toggleModeDropdown() {
+  modeDropdownOpen.value = !modeDropdownOpen.value;
+}
+
+function selectMode(value) {
+  selectedDocType.value = value;
+  modeDropdownOpen.value = false;
+}
+
+function handleModeClickOutside(event) {
+  if (!modeDropdownOpen.value || !modeSelectRef.value) {
+    return;
+  }
+  if (!modeSelectRef.value.contains(event.target)) {
+    modeDropdownOpen.value = false;
+  }
+}
+
 function handleGlobalKeydown(event) {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     openCommandCenter();
+  }
+  if (event.key === 'Escape' && modeDropdownOpen.value) {
+    modeDropdownOpen.value = false;
+    return;
   }
   if (event.key === 'Escape' && cardDetailVisible.value) {
     closeCardDetail();
@@ -7792,6 +7835,224 @@ async function confirmDeleteSession(session) {
   .hero-flow span {
     padding: 0 8px;
     font-size: 11px;
+  }
+}
+
+/* Custom mode selector: consistent across Windows, macOS and WebView */
+.composer,
+.composer-tools,
+.composer-left-tools {
+  overflow: visible !important;
+}
+
+.mode-select {
+  position: relative;
+  z-index: 130;
+  display: inline-block !important;
+  width: auto;
+  height: auto !important;
+  min-height: 0 !important;
+  min-width: 132px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  flex: 0 0 auto;
+  color: inherit !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: default;
+  transition: none;
+  font-family:
+    "Inter",
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+}
+
+.mode-select:hover {
+  transform: none !important;
+  border-color: transparent !important;
+  color: inherit !important;
+  background: transparent !important;
+}
+
+.mode-select-trigger {
+  display: inline-flex;
+  width: 100%;
+  min-width: 132px;
+  height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px 0 16px;
+  border: 1px solid rgba(246, 200, 111, 0.24);
+  border-radius: 15px;
+  color: rgba(255, 247, 231, 0.92);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(13, 15, 21, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 8px 24px rgba(0, 0, 0, 0.22);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.mode-select-trigger:hover {
+  transform: translateY(-1px);
+  border-color: rgba(246, 200, 111, 0.38);
+  color: rgba(255, 247, 231, 0.98);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.022)),
+    rgba(17, 19, 27, 0.96);
+}
+
+.mode-select-trigger.is-open {
+  border-color: rgba(246, 200, 111, 0.46);
+  box-shadow:
+    0 0 0 3px rgba(246, 200, 111, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 14px 36px rgba(0, 0, 0, 0.32);
+}
+
+.mode-select-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mode-select-arrow {
+  flex: 0 0 auto;
+  color: rgba(246, 200, 111, 0.86);
+  font-size: 16px;
+  transform: translateY(-1px);
+  transition: transform 0.18s ease;
+}
+
+.mode-select-trigger.is-open .mode-select-arrow {
+  transform: rotate(180deg) translateY(1px);
+}
+
+.mode-select-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 160;
+  width: 184px;
+  max-height: min(360px, 52vh);
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid rgba(246, 200, 111, 0.2);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(246, 200, 111, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(14, 16, 23, 0.96);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.54),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  transform-origin: bottom left;
+}
+
+.mode-select-option {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 13px;
+  color: rgba(255, 247, 231, 0.84);
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.mode-select-option:hover {
+  color: rgba(255, 247, 231, 0.96);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.mode-select-option.is-active {
+  color: rgba(255, 248, 234, 0.98);
+  background:
+    linear-gradient(90deg, rgba(246, 200, 111, 0.2), rgba(246, 200, 111, 0.1));
+}
+
+.mode-option-check {
+  width: 18px;
+  flex: 0 0 18px;
+  color: rgba(246, 200, 111, 0.96);
+  font-weight: 900;
+  text-align: center;
+}
+
+.mode-option-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mode-dropdown-enter-active,
+.mode-dropdown-leave-active {
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.mode-dropdown-enter-from,
+.mode-dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
+
+.mode-dropdown-enter-to,
+.mode-dropdown-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@media (max-width: 768px) {
+  .mode-select {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .mode-select-trigger {
+    min-width: 0;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .mode-select-menu {
+    width: 172px;
+    max-width: calc(100vw - 32px);
+    max-height: min(320px, 46vh);
+  }
+
+  .mode-select-option {
+    min-height: 42px;
+    font-size: 14px;
   }
 }
 </style>
