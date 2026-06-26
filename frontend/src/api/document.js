@@ -22,6 +22,7 @@ export async function streamGenerateDocument(data, handlers = {}) {
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   let finalPayload = null;
+  let currentEventName = 'message';
 
   while (true) {
     const { value, done } = await reader.read();
@@ -30,11 +31,16 @@ export async function streamGenerateDocument(data, handlers = {}) {
     }
 
     buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split(/\r?\n\r?\n+/);
-    buffer = events.pop() || '';
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
 
-    for (const eventBlock of events) {
-      const payload = parseSseBlock(eventBlock);
+    for (const line of lines) {
+      const parsed = parseSseLine(line, currentEventName);
+      if (parsed?.eventName) {
+        currentEventName = parsed.eventName;
+        continue;
+      }
+      const payload = parsed?.payload;
       if (!payload) {
         continue;
       }
@@ -44,8 +50,9 @@ export async function streamGenerateDocument(data, handlers = {}) {
   }
 
   if (buffer.trim()) {
-    const payload = parseSseBlock(buffer);
-    if (payload) {
+    const parsed = parseSseLine(buffer, currentEventName);
+    if (parsed?.payload) {
+      const payload = parsed.payload;
       finalPayload = payload.data || finalPayload;
       dispatchStreamPayload(payload, handlers);
     }
@@ -54,38 +61,37 @@ export async function streamGenerateDocument(data, handlers = {}) {
   return finalPayload;
 }
 
-function parseSseBlock(block) {
-  let eventName = 'message';
-  const dataLines = [];
-  block.split(/\n/).forEach((line) => {
-    const trimmed = line.trimEnd();
-    if (trimmed.startsWith('event:')) {
-      eventName = trimmed.slice(6).trim() || 'message';
-      return;
-    }
-    if (trimmed.startsWith('data:')) {
-      dataLines.push(trimmed.slice(5).trimStart());
-    }
-  });
-
-  if (!dataLines.length) {
+function parseSseLine(line, eventName = 'message') {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.startsWith('event:')) {
+    return { eventName: trimmed.slice(6).trim() || 'message' };
+  }
+  if (!trimmed.startsWith('data:')) {
     return null;
   }
 
-  const dataText = dataLines.join('\n');
+  const dataText = trimmed.slice(5).trimStart();
   if (dataText === '[DONE]') {
-    return { eventName: 'done', data: { type: 'done' } };
+    return { payload: { eventName: 'done', data: { type: 'done' } } };
   }
 
   try {
-    return { eventName, data: JSON.parse(dataText) };
+    return { payload: { eventName, data: JSON.parse(dataText) } };
   } catch (error) {
-    return { eventName, data: { type: eventName, content: dataText } };
+    return { payload: { eventName, data: { type: eventName, content: dataText } } };
   }
 }
 
 function dispatchStreamPayload(payload, handlers) {
   const eventType = payload.data?.type || payload.eventName;
+  const openAiDelta = payload.data?.choices?.[0]?.delta?.content;
+  if (openAiDelta) {
+    handlers.onDelta?.(openAiDelta);
+    return;
+  }
   if (eventType === 'start') {
     handlers.onStart?.(payload.data);
     return;

@@ -360,7 +360,7 @@
         </div>
       </section>
 
-      <footer v-if="activeNav !== 'folders'" class="composer-wrap">
+      <footer v-if="activeNav !== 'folders'" ref="composerWrap" class="composer-wrap">
         <div class="composer">
           <textarea
             v-model="inputText"
@@ -529,7 +529,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
-import { generateDocument, listDocuments, streamGenerateDocument } from '../api/document';
+import { generateDocument, getDocumentDetail, listDocuments, streamGenerateDocument } from '../api/document';
 import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
 import { ANONYMOUS_USER_ID } from '../config/user';
 import {
@@ -630,6 +630,7 @@ const scrollProgress = ref(0);
 const featureCards = ref([]);
 const visibleCards = ref([]);
 const fileInput = ref(null);
+const composerWrap = ref(null);
 const modeSelectRef = ref(null);
 const modeDropdownOpen = ref(false);
 const selectedCard = ref(null);
@@ -642,6 +643,8 @@ const router = useRouter();
 
 let scrollFrame = 0;
 let featureObserver = null;
+let composerResizeObserver = null;
+const shouldFollowStream = ref(false);
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
@@ -656,7 +659,7 @@ const latestAssistantMessage = computed(() => {
   return [...activeMessages.value].reverse().find((message) => message.role === 'assistant');
 });
 const latestAssistantText = computed(() => latestAssistantMessage.value?.content || '');
-const isGeneratingCards = computed(() => Boolean(latestAssistantMessage.value?.loading));
+const isGeneratingCards = computed(() => Boolean(latestAssistantMessage.value?.loading && !latestAssistantText.value.trim()));
 const sourceCards = computed(() => extractSources(latestAssistantText.value));
 const generatedCards = computed(() => buildGeneratedCards(latestAssistantText.value, selectedDocType.value));
 const filteredGeneratedCards = computed(() => {
@@ -761,6 +764,29 @@ function updateAppHeight() {
   document.documentElement.style.setProperty('--app-height', `${height}px`);
 }
 
+function updateComposerSafeBottom(height = 0) {
+  const safeHeight = Math.max(150, Math.ceil(height) + 34);
+  document.documentElement.style.setProperty('--composer-safe-bottom', `${safeHeight}px`);
+}
+
+function initComposerSafeArea() {
+  updateComposerSafeBottom(composerWrap.value?.getBoundingClientRect().height || 0);
+  if (!composerWrap.value || typeof ResizeObserver === 'undefined') {
+    return;
+  }
+  composerResizeObserver = new ResizeObserver((entries) => {
+    const height = entries[0]?.contentRect?.height || composerWrap.value?.getBoundingClientRect().height || 0;
+    updateComposerSafeBottom(height);
+  });
+  composerResizeObserver.observe(composerWrap.value);
+}
+
+function teardownComposerSafeArea() {
+  composerResizeObserver?.disconnect();
+  composerResizeObserver = null;
+  document.documentElement.style.removeProperty('--composer-safe-bottom');
+}
+
 onMounted(async () => {
   updateAppHeight();
   restoreSessions();
@@ -773,16 +799,14 @@ onMounted(async () => {
   await loadAiConfig();
   await loadFileMcpCapabilities();
   await nextTick();
+  initComposerSafeArea();
   initMotionEffects();
-  if (activeMessages.value.length > 0) {
-    scrollToBottom();
-  } else {
-    scrollToTop();
-  }
+  scrollWorkspaceToTop();
 });
 
 onUnmounted(() => {
   teardownMotionEffects();
+  teardownComposerSafeArea();
   window.visualViewport?.removeEventListener('resize', updateAppHeight);
   window.removeEventListener('resize', updateAppHeight);
   document.removeEventListener('click', handleModeClickOutside);
@@ -796,6 +820,12 @@ watch(
     syncActiveNavFromRoute(view);
   }
 );
+
+watch(activeNav, async () => {
+  await nextTick();
+  teardownComposerSafeArea();
+  initComposerSafeArea();
+});
 
 async function loadAiConfig() {
   aiConfig.value = await getAiConfig();
@@ -855,15 +885,19 @@ function createSession() {
   activeNav.value = 'home';
   replaceWorkspaceView('home');
   persistSessions();
-  nextTick(focusComposerInput);
+  nextTick(async () => {
+    await scrollWorkspaceToTop();
+    focusComposerInput();
+  });
 }
 
 function switchSession(sessionId) {
   activeSessionId.value = sessionId;
   sidebarOpen.value = false;
   activeNav.value = 'chat';
+  shouldFollowStream.value = false;
   replaceWorkspaceView('chat');
-  nextTick(scrollToBottom);
+  nextTick(scrollWorkspaceToTop);
 }
 
 function applyPrompt(prompt) {
@@ -1090,6 +1124,7 @@ function initMotionEffects() {
     return;
   }
   viewport.addEventListener('scroll', requestScrollProgress, { passive: true });
+  viewport.addEventListener('scroll', handleMessageViewportScroll, { passive: true });
   requestScrollProgress();
 
   if ('IntersectionObserver' in window) {
@@ -1123,6 +1158,7 @@ function teardownMotionEffects() {
   const viewport = messageViewport.value;
   if (viewport) {
     viewport.removeEventListener('scroll', requestScrollProgress);
+    viewport.removeEventListener('scroll', handleMessageViewportScroll);
   }
   if (scrollFrame) {
     cancelAnimationFrame(scrollFrame);
@@ -1130,6 +1166,13 @@ function teardownMotionEffects() {
   }
   featureObserver?.disconnect();
   featureObserver = null;
+}
+
+function handleMessageViewportScroll() {
+  if (!sending.value) {
+    return;
+  }
+  shouldFollowStream.value = isViewportNearBottom();
 }
 
 function requestScrollProgress() {
@@ -1181,13 +1224,14 @@ async function sendMessage() {
   session.updatedAtValue = Date.now();
   inputText.value = '';
   sending.value = true;
+  shouldFollowStream.value = true;
   if (file) {
     selectedUploadStatus.value = '解析生成中';
   }
   persistSessions();
   await nextTick();
   resetComposerHeight();
-  scrollToBottom();
+  scrollToLatestGeneratedCard();
 
   try {
     if (file) {
@@ -1228,7 +1272,10 @@ async function sendMessage() {
     sending.value = false;
     persistSessions();
     await nextTick();
-    scrollToBottom();
+    if (shouldFollowStream.value) {
+      await scrollToLatestGeneratedCard({ smooth: false });
+      shouldFollowStream.value = false;
+    }
   }
 }
 
@@ -1236,9 +1283,11 @@ async function generateTextWithStream({ assistantMessage, payload }) {
   let streamedText = '';
   const streamedSources = [];
   let streamError = null;
+  let savedPayload = null;
+  let donePayloadFromEvent = null;
 
   try {
-    const donePayload = await streamGenerateDocument(payload, {
+    const finalPayload = await streamGenerateDocument(payload, {
       onStart: () => {
         assistantMessage.loading = true;
         assistantMessage.content = '';
@@ -1250,7 +1299,7 @@ async function generateTextWithStream({ assistantMessage, payload }) {
         streamedText += delta;
         assistantMessage.loading = false;
         assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
-        scrollToBottom();
+        scrollToLatestGeneratedCard({ smooth: false });
       },
       onSource: (source) => {
         if (!source?.url && !source?.title) {
@@ -1259,7 +1308,7 @@ async function generateTextWithStream({ assistantMessage, payload }) {
         streamedSources.push(source);
         assistantMessage.loading = false;
         assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
-        scrollToBottom();
+        scrollToLatestGeneratedCard({ smooth: false });
       },
       onWarning: (message) => {
         ElMessage.warning(message);
@@ -1267,19 +1316,28 @@ async function generateTextWithStream({ assistantMessage, payload }) {
       onError: (data) => {
         streamError = new Error(data?.message || '流式生成失败');
       },
+      onSaved: (data) => {
+        savedPayload = data || null;
+      },
       onDone: (data) => {
+        donePayloadFromEvent = data || null;
         if (data?.resultText && !streamedText.trim()) {
           streamedText = data.resultText;
           assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
         }
+        assistantMessage.loading = false;
       }
     });
 
     if (streamError) {
       throw streamError;
     }
-    if (donePayload?.resultText && !streamedText.trim()) {
-      assistantMessage.content = buildStreamingAssistantContent(donePayload.resultText, streamedSources);
+    const completionPayload = donePayloadFromEvent || finalPayload || savedPayload;
+    if (completionPayload?.resultText && !streamedText.trim()) {
+      assistantMessage.content = buildStreamingAssistantContent(completionPayload.resultText, streamedSources);
+    }
+    if (completionPayload?.documentId) {
+      await refreshGeneratedMessageFromDocument(completionPayload.documentId, assistantMessage, streamedSources);
     }
     if (!assistantMessage.content.trim()) {
       assistantMessage.content = 'AI 暂未返回内容。';
@@ -1289,6 +1347,22 @@ async function generateTextWithStream({ assistantMessage, payload }) {
     ElMessage.warning('流式生成暂时不可用，已切换为普通生成。');
     const result = await generateDocument(payload);
     await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
+    if (result.documentId) {
+      await refreshGeneratedMessageFromDocument(result.documentId, assistantMessage, []);
+    }
+  }
+}
+
+async function refreshGeneratedMessageFromDocument(documentId, assistantMessage, sources = []) {
+  try {
+    const detail = await getDocumentDetail(documentId);
+    if (detail?.resultText) {
+      assistantMessage.content = buildStreamingAssistantContent(detail.resultText, sources);
+    }
+  } catch {
+    // The streamed content is already visible; detail refresh is a final consistency pass.
+  } finally {
+    assistantMessage.loading = false;
   }
 }
 
@@ -1315,7 +1389,8 @@ async function refreshAfterGeneration(session) {
     listDocuments(ANONYMOUS_USER_ID),
     nextTick()
   ]);
-  scrollToBottom();
+  await scrollToLatestGeneratedCard({ smooth: true });
+  shouldFollowStream.value = false;
 }
 
 function createMessage(role, content, loading = false) {
@@ -1334,7 +1409,7 @@ async function revealAssistantMessage(message, fullText) {
   for (let index = 0; index < fullText.length; index += chunkSize) {
     message.content += fullText.slice(index, index + chunkSize);
     await wait(14);
-    scrollToBottom();
+    scrollToLatestGeneratedCard({ smooth: false });
   }
 }
 
@@ -1361,18 +1436,40 @@ function resetComposerHeight() {
   }
 }
 
-function scrollToBottom() {
+function scrollToTop() {
+  scrollWorkspaceToTop();
+}
+
+async function scrollWorkspaceToTop() {
+  await nextTick();
   const viewport = messageViewport.value;
   if (viewport) {
-    viewport.scrollTop = viewport.scrollHeight;
+    viewport.scrollTo({ top: 0, behavior: 'auto' });
   }
 }
 
-function scrollToTop() {
-  const viewport = messageViewport.value;
-  if (viewport) {
-    viewport.scrollTop = 0;
+async function scrollToLatestGeneratedCard({ smooth = true } = {}) {
+  if (!shouldFollowStream.value) {
+    return;
   }
+  await nextTick();
+  const viewport = messageViewport.value;
+  if (!viewport) {
+    return;
+  }
+  viewport.scrollTo({
+    top: viewport.scrollHeight,
+    behavior: smooth ? 'smooth' : 'auto'
+  });
+}
+
+function isViewportNearBottom() {
+  const viewport = messageViewport.value;
+  if (!viewport) {
+    return false;
+  }
+  const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+  return distance < 140;
 }
 
 function buildSessionTitle(content) {
@@ -1669,7 +1766,7 @@ function activateWorkspaceHome() {
 function goAiChat() {
   activeNav.value = 'chat';
   replaceWorkspaceView('chat');
-  nextTick(scrollToBottom);
+  nextTick(scrollWorkspaceToTop);
 }
 
 function openFolderView() {
@@ -1681,8 +1778,9 @@ function openFolderView() {
 function openFolderSession(sessionId) {
   activeSessionId.value = sessionId;
   activeNav.value = 'chat';
+  shouldFollowStream.value = false;
   replaceWorkspaceView('chat');
-  nextTick(scrollToBottom);
+  nextTick(scrollWorkspaceToTop);
 }
 
 function syncActiveNavFromRoute(view) {
@@ -1694,7 +1792,7 @@ function syncActiveNavFromRoute(view) {
   }
   if (view === 'chat') {
     activeNav.value = 'chat';
-    nextTick(scrollToBottom);
+    nextTick(scrollWorkspaceToTop);
     return;
   }
   activateWorkspaceHome();
@@ -8144,6 +8242,52 @@ async function confirmDeleteSession(session) {
   .mode-select-option {
     min-height: 42px;
     font-size: 14px;
+  }
+}
+
+/* Final scroll/layout overrides: avoid forcing historical workspaces near the composer. */
+.message-viewport {
+  padding-bottom: var(--composer-safe-bottom, 168px) !important;
+  scroll-padding-bottom: var(--composer-safe-bottom, 168px) !important;
+}
+
+.workspace-canvas {
+  min-height: 0 !important;
+  padding-bottom: 24px !important;
+}
+
+.generated-layout,
+.generated-layout.has-sources,
+.generated-card-grid,
+.card-skeleton-grid {
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.raw-response {
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 1199px) {
+  .message-viewport {
+    padding-bottom: var(--composer-safe-bottom, 178px) !important;
+    scroll-padding-bottom: var(--composer-safe-bottom, 178px) !important;
+  }
+
+  .workspace-canvas {
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .message-viewport {
+    padding-bottom: calc(var(--composer-safe-bottom, 188px) + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom: calc(var(--composer-safe-bottom, 188px) + env(safe-area-inset-bottom)) !important;
+  }
+
+  .workspace-canvas,
+  .result-board {
+    padding-bottom: 0 !important;
   }
 }
 </style>
