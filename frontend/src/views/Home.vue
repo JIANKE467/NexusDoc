@@ -8500,4 +8500,78 @@ async function confirmDeleteSession(session) {
     padding-left: 12px !important;
   }
 }
+
+@media (min-width: 769px) {
+  .chat-topbar {
+    min-height: 56px !important;
+    padding: 12px clamp(32px, 4vw, 58px) 10px !important;
+  }
+
+  .message-viewport {
+    padding-top: 0 !important;
+    padding-right: clamp(32px, 4vw, 58px) !important;
+    padding-bottom: var(--composer-safe-bottom, 168px) !important;
+    padding-left: clamp(32px, 4vw, 58px) !important;
+    scroll-padding-top: 0 !important;
+  }
+
+  .welcome-panel {
+    max-width: 1220px !important;
+    min-height: auto !important;
+    gap: 18px !important;
+    padding: clamp(16px, 2.6vh, 34px) 0 24px !important;
+  }
+
+  .hero-stage {
+    align-items: start !important;
+    gap: clamp(26px, 3.5vw, 46px) !important;
+    min-height: min(560px, calc(100vh - 260px)) !important;
+    padding: clamp(18px, 3vh, 34px) clamp(30px, 4.5vw, 64px) 18px !important;
+  }
+
+  .hero-copy {
+    padding-top: clamp(4px, 1vh, 12px) !important;
+  }
+
+  .hero-copy h2 {
+    margin-top: 12px !important;
+    font-size: clamp(48px, 4.7vw, 78px) !important;
+    line-height: 1.04 !important;
+  }
+
+  .hero-subtitle {
+    margin-top: 14px !important;
+    line-height: 1.72 !important;
+  }
+
+  .hero-flow {
+    margin-top: 16px !important;
+  }
+
+  .ocean-stage {
+    min-height: min(470px, calc(100vh - 300px)) !important;
+    transform: translateX(8px) translateY(-14px) scale(0.92) !important;
+    transform-origin: top center !important;
+  }
+}
+
+@media (min-width: 769px) and (max-height: 820px) {
+  .welcome-panel {
+    padding-top: 12px !important;
+  }
+
+  .hero-stage {
+    min-height: min(500px, calc(100vh - 245px)) !important;
+    padding-top: 18px !important;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(44px, 4.35vw, 70px) !important;
+  }
+
+  .ocean-stage {
+    min-height: 430px !important;
+    transform: translateX(8px) translateY(-18px) scale(0.88) !important;
+  }
+}
 </style>
