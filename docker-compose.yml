@@ -29,12 +29,15 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       MYSQL_URL: jdbc:mysql://db:3306/nexusdoc?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
       MYSQL_USERNAME: root
       MYSQL_PASSWORD: rootpassword
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
-      SILICONFLOW_BASE_URL: https://api.siliconflow.cn/v1/chat/completions
+      SILICONFLOW_BASE_URL: ${SILICONFLOW_BASE_URL:-https://api.siliconflow.cn/v1/chat/completions}
+      SILICONFLOW_MODEL: ${SILICONFLOW_MODEL:-gpt-5.4}
 
   frontend:
     build:
