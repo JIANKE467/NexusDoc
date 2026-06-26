@@ -76,10 +76,9 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        boolean enableWebSearch = Boolean.TRUE.equals(request.getEnableWebSearch());
-        List<WebSearchResultVO> searchResults = enableWebSearch
-                ? webSearchService.search(buildSearchQuery(document, request.getQuestion()))
-                : List.of();
+        boolean enableWebSearch = true;
+        List<WebSearchResultVO> searchResults =
+                webSearchService.search(buildSearchQuery(document, request.getQuestion()));
 
         String prompt = PromptTemplateFactory.buildAskPrompt(
                 document.getContent(),

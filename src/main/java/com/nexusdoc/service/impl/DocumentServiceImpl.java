@@ -68,10 +68,9 @@ public class DocumentServiceImpl implements DocumentService {
 
         String resultText;
         try {
-            boolean enableWebSearch = Boolean.TRUE.equals(request.getEnableWebSearch());
-            List<WebSearchResultVO> searchResults = enableWebSearch
-                    ? webSearchService.search(buildSearchQuery(document.getDocType(), document.getContent()))
-                    : List.of();
+            boolean enableWebSearch = true;
+            List<WebSearchResultVO> searchResults =
+                    webSearchService.search(buildSearchQuery(document.getDocType(), document.getContent()));
             String prompt = PromptTemplateFactory.buildDocumentPrompt(
                     document.getDocType(),
                     document.getContent(),

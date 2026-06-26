@@ -24,15 +24,13 @@
         新建工作台
       </button>
 
-      <div class="sidebar-mini-label">快捷操作</div>
-      <div class="quick-actions">
-        <button type="button" @click="applyCommand('summary')">上传文档</button>
-        <button type="button" @click="focusComposerInput">粘贴文本</button>
-        <button type="button" @click="applyCommand('citation')">网页解析</button>
-        <button type="button" @click="openFolderView">新建文件夹</button>
-        <button type="button" @click="applyCommand('citation')">导入链接</button>
-        <button type="button" @click="openCommandCenter">模板中心</button>
-      </div>
+      <input
+        ref="fileInput"
+        class="hidden-file-input"
+        type="file"
+        accept=".txt,.md,.markdown,.csv,.json,.log"
+        @change="handleDocumentUpload"
+      />
 
       <div class="sidebar-section">
         <p>最近工作台</p>
@@ -76,26 +74,6 @@
         </div>
       </div>
 
-      <div class="sidebar-filter">
-        <p>卡片筛选器</p>
-        <button
-          v-for="filter in cardFilters"
-          :key="filter"
-          :class="{ active: activeCardFilter === filter }"
-          type="button"
-          @click="activeCardFilter = filter"
-        >
-          {{ filter }}
-        </button>
-      </div>
-
-      <div class="sidebar-storage">
-        <div>
-          <span>存储空间</span>
-          <strong>2.6 GB / 20 GB</strong>
-        </div>
-        <i><b></b></i>
-      </div>
     </aside>
 
     <main class="chat-main">
@@ -159,7 +137,7 @@
               <span class="status-pill">AI 文档知识工作台</span>
               <p class="hero-kicker">Nexus Knowledge Workspace</p>
               <h2 id="home-hero-title">
-                把文档，整理成<br />
+                把文档整理成<br />
                 <span>可追问的知识卡片。</span>
               </h2>
               <p class="hero-subtitle">
@@ -187,6 +165,16 @@
               <div class="knowledge-core">
                 <span>Core</span>
                 <i></i>
+              </div>
+              <div class="orbit-relation-note">最近文档 → Core → 知识卡片</div>
+              <div
+                v-for="(doc, index) in recentOrbitDocs"
+                :key="doc.id"
+                :class="['orbit-doc-card', `is-doc-${index + 1}`]"
+              >
+                <small>最近生成</small>
+                <strong>{{ doc.title }}</strong>
+                <span>{{ doc.meta }}</span>
               </div>
               <div class="orbit-card orbit-summary">
                 <small>摘要卡</small>
@@ -299,44 +287,56 @@
             </article>
           </section>
 
-          <section v-else class="generated-layout">
+          <section v-else :class="['generated-layout', { 'has-sources': sourceCards.length > 0 }]">
             <div class="generated-card-grid">
+              <div class="result-filter-bar" aria-label="结果卡片筛选">
+                <button
+                  v-for="filter in cardFilters"
+                  :key="filter"
+                  :class="{ active: activeCardFilter === filter }"
+                  type="button"
+                  @click="activeCardFilter = filter"
+                >
+                  {{ filter }}
+                </button>
+              </div>
               <article
                 v-for="card in filteredGeneratedCards"
                 :key="card.id"
                 :class="['knowledge-card', card.tone]"
+                tabindex="0"
+                role="button"
+                @click="openCardDetail(card)"
+                @keydown.enter.prevent="openCardDetail(card)"
               >
                 <div class="card-head">
                   <span>{{ card.label }}</span>
                   <small>{{ card.meta }}</small>
                 </div>
                 <h3>{{ card.title }}</h3>
-                <p>{{ card.body }}</p>
-                <ul v-if="card.points.length">
+                <div class="card-content-preview markdown-preview" v-html="renderMarkdown(card.body)"></div>
+                <ul v-if="card.points.length" class="card-content-preview">
                   <li v-for="point in card.points" :key="point">{{ point }}</li>
                 </ul>
+                <div class="card-read-more">点击查看详情</div>
                 <div v-if="card.sources.length" class="source-chips">
-                  <button v-for="source in card.sources" :key="source.id" type="button">
+                  <button v-for="source in card.sources" :key="source.id" type="button" @click.stop>
                     [{{ source.id }}]
                   </button>
                 </div>
                 <div class="card-actions">
-                  <button type="button" @click="copyText(card.raw)">复制</button>
-                  <button type="button" @click="askFromCard(card)">继续追问</button>
-                  <button type="button" @click="openMoveDialog(activeSession)">加入档案夹</button>
+                  <button type="button" @click.stop="copyText(card.raw)">复制</button>
+                  <button type="button" @click.stop="askFromCard(card)">继续追问</button>
+                  <button type="button" @click.stop="openMoveDialog(activeSession)">加入档案夹</button>
                 </div>
               </article>
             </div>
 
-            <aside class="source-rail">
+            <aside v-if="sourceCards.length > 0" class="source-rail">
               <div class="source-rail-head">
                 <span>参考来源</span>
                 <strong>{{ sourceCards.length }}</strong>
               </div>
-              <article v-if="sourceCards.length === 0" class="citation-card muted-source">
-                <span>Sources</span>
-                <p>开启联网搜索后，来源会以引用卡片形式展示在这里。</p>
-              </article>
               <article v-for="source in sourceCards" :key="source.id" class="citation-card">
                 <span>[{{ source.id }}] {{ source.site || 'Reference' }}</span>
                 <strong>{{ source.title }}</strong>
@@ -362,25 +362,54 @@
             @input="resizeComposer"
             @keydown="handleComposerKeydown"
           ></textarea>
+          <div class="composer-source-row" aria-label="输入来源快捷操作">
+            <button type="button" @click="triggerDocumentUpload">
+              <span>↑</span>
+              上传文档
+            </button>
+            <button type="button" @click="pasteClipboardText">
+              <span>⌘</span>
+              粘贴文本
+            </button>
+            <button type="button" @click="prepareUrlAnalysis">
+              <span>⌁</span>
+              网页解析
+            </button>
+            <button type="button" @click="importLink">
+              <span>↗</span>
+              导入链接
+            </button>
+            <button type="button" @click="openCommandCenter">
+              <span>⌘K</span>
+              模板中心
+            </button>
+          </div>
           <div class="composer-tools">
             <div class="composer-left-tools">
               <select v-model="selectedDocType" aria-label="文档类型">
                 <option v-for="item in docTypes" :key="item" :value="item">{{ item }}</option>
               </select>
-              <label class="web-search-toggle" title="开启后，系统会先搜索网络资料，再结合搜索结果回答。">
-                <input v-model="enableWebSearch" type="checkbox" />
-                <span>联网搜索增强</span>
-              </label>
-              <select v-model="materialScope" aria-label="资料范围">
-                <option>全部工作台</option>
-                <option>当前工作台</option>
-                <option>收藏档案夹</option>
-              </select>
-              <div class="card-type-pills">
-                <button v-for="pill in quickCardPills" :key="pill.label" type="button" @click="applyCommand(pill.command)">
-                  {{ pill.label }}
+              <el-dropdown
+                trigger="click"
+                popper-class="nexus-dropdown card-type-dropdown"
+                @command="applyCommand"
+              >
+                <button class="card-type-menu" type="button">
+                  卡片类型
+                  <span>摘要 / 观点 / 任务 / 导图</span>
                 </button>
-              </div>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="pill in quickCardPills"
+                      :key="pill.label"
+                      :command="pill.command"
+                    >
+                      {{ pill.label }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
             <button class="send-button" type="button" :disabled="sending || !inputText.trim()" @click="sendMessage">
               <span v-if="sending">生成中</span>
@@ -409,6 +438,38 @@
             <small>{{ command.description }}</small>
           </button>
         </div>
+      </section>
+    </div>
+
+    <div v-if="cardDetailVisible && selectedCard" class="card-detail-mask" @click="closeCardDetail">
+      <section
+        :class="['card-detail-modal', selectedCard.tone]"
+        role="dialog"
+        aria-modal="true"
+        aria-label="知识卡片详情"
+        @click.stop
+      >
+        <header class="card-detail-header">
+          <div>
+            <span class="card-detail-type">{{ selectedCard.label }}</span>
+            <h2>{{ selectedCard.title || getDefaultCardTitle(selectedCard.label) }}</h2>
+            <small>{{ selectedCard.meta }}</small>
+          </div>
+          <button class="detail-close" type="button" aria-label="关闭详情" @click="closeCardDetail">×</button>
+        </header>
+
+        <main class="card-detail-body markdown-body" v-html="renderMarkdown(selectedCard.raw || selectedCard.body)"></main>
+        <div v-if="selectedCard.sources?.length" class="card-detail-source-wrap">
+          <div v-if="selectedCard.sources?.length" class="card-detail-sources">
+            <span v-for="source in selectedCard.sources" :key="source.id">[{{ source.id }}]</span>
+          </div>
+        </div>
+
+        <footer class="card-detail-footer">
+          <button type="button" @click="copyText(selectedCard.raw)">复制</button>
+          <button type="button" @click="askFromCard(selectedCard)">继续追问</button>
+          <button type="button" @click="openMoveDialog(activeSession)">加入档案夹</button>
+        </footer>
       </section>
     </div>
 
@@ -442,7 +503,7 @@ import { ANONYMOUS_USER_ID } from '../config/user';
 
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
 const DEFAULT_FOLDER = '默认档案夹';
-const folderOptions = ['默认档案夹', '收藏', '项目文档', '小说设定', '会议资料'];
+const folderOptions = ref(['默认档案夹', '收藏', '项目文档', '小说设定', '会议资料']);
 const cardFilters = ['全部', '摘要', '观点', '引用', '任务', '结构', '来源'];
 const cardFilterMap = {
   摘要: '摘要卡',
@@ -513,8 +574,7 @@ const sessions = ref([]);
 const activeSessionId = ref('');
 const inputText = ref('');
 const selectedDocType = ref('智能回答');
-const enableWebSearch = ref(false);
-const materialScope = ref('全部工作台');
+const enableWebSearch = ref(true);
 const activeModeTab = ref('智能问答');
 const sending = ref(false);
 const sidebarOpen = ref(false);
@@ -531,6 +591,9 @@ const commandQuery = ref('');
 const scrollProgress = ref(0);
 const featureCards = ref([]);
 const visibleCards = ref([]);
+const fileInput = ref(null);
+const selectedCard = ref(null);
+const cardDetailVisible = ref(false);
 const route = useRoute();
 const router = useRouter();
 
@@ -567,8 +630,21 @@ const sortedSessions = computed(() => {
     return getSessionTime(second) - getSessionTime(first);
   });
 });
+const recentOrbitDocs = computed(() => {
+  return sortedSessions.value
+    .filter((session) => !isBlankDraftSession(session))
+    .slice(0, 3)
+    .map((session) => {
+      const cardCount = getSessionCardCount(session);
+      return {
+        id: session.id,
+        title: compactOrbitTitle(session.title),
+        meta: cardCount > 0 ? `${cardCount} 张卡片` : (session.isDraft ? 'Draft' : session.updatedAt || '最近生成')
+      };
+    });
+});
 const folderStats = computed(() => {
-  return folderOptions.map((name) => {
+  return folderOptions.value.map((name) => {
     const items = sessions.value.filter((session) => (session.folderName || DEFAULT_FOLDER) === name);
     const latest = items.reduce((max, session) => Math.max(max, getSessionTime(session)), 0);
     return {
@@ -590,7 +666,6 @@ const commands = computed(() => [
   { id: 'trend', icon: 'T', title: '分析趋势与风险', description: '生成趋势、风险和隐藏问题卡', docType: '趋势分析' },
   { id: 'history', icon: 'H', title: '打开历史记录', description: '进入历史工作台库' },
   { id: 'folders', icon: 'F', title: '打开档案夹', description: '查看知识沉淀空间' },
-  { id: 'web', icon: 'W', title: '开启联网搜索', description: '让生成结果包含来源引用卡', enableWebSearch: true },
   { id: 'new', icon: 'N', title: '新建工作台', description: '创建一个新的卡片生成工作台' }
 ]);
 const filteredCommands = computed(() => {
@@ -713,6 +788,86 @@ function applySuggestion(suggestion) {
   });
 }
 
+function triggerDocumentUpload() {
+  fileInput.value?.click();
+}
+
+async function handleDocumentUpload(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) {
+    return;
+  }
+  try {
+    const text = await file.text();
+    inputText.value = `请把下面上传文档整理成知识卡片，包含摘要、观点、任务、结构和可追问问题：\n\n${text}`;
+    selectedDocType.value = '通用总结';
+    activeNav.value = 'home';
+    replaceWorkspaceView('home');
+    await nextTick();
+    focusComposerInput();
+    ElMessage.success(`已读取「${file.name}」`);
+  } catch {
+    ElMessage.error('文档读取失败，请上传 txt、md、csv、json 等文本文件');
+  }
+}
+
+async function pasteClipboardText() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) {
+      ElMessage.warning('剪贴板暂无可粘贴文本');
+      focusComposerInput();
+      return;
+    }
+    inputText.value = text.trim();
+    selectedDocType.value = '智能回答';
+    await nextTick();
+    focusComposerInput();
+    ElMessage.success('已粘贴剪贴板文本');
+  } catch {
+    focusComposerInput();
+    ElMessage.info('浏览器未授权读取剪贴板，请直接在输入框粘贴');
+  }
+}
+
+async function prepareUrlAnalysis() {
+  const url = await promptForUrl('网页解析', '请输入需要解析的网页地址');
+  if (!url) {
+    return;
+  }
+  inputText.value = `请联网解析并总结这个网页，输出摘要卡、观点卡、引用卡和可追问问题：\n${url}`;
+  selectedDocType.value = '智能回答';
+  await nextTick();
+  focusComposerInput();
+}
+
+async function importLink() {
+  const url = await promptForUrl('导入链接', '请输入要导入到当前工作台的资料链接');
+  if (!url) {
+    return;
+  }
+  inputText.value = `请把这个链接作为资料来源导入并整理成知识卡片，保留参考来源：\n${url}`;
+  selectedDocType.value = '智能回答';
+  await nextTick();
+  focusComposerInput();
+}
+
+async function promptForUrl(title, message) {
+  try {
+    const { value } = await ElMessageBox.prompt(message, title, {
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      inputPlaceholder: 'https://example.com/article',
+      inputPattern: /^https?:\/\/\S+$/i,
+      inputErrorMessage: '请输入以 http:// 或 https:// 开头的链接'
+    });
+    return value.trim();
+  } catch {
+    return '';
+  }
+}
+
 function applyCommand(commandId) {
   const command = commands.value.find((item) => item.id === commandId);
   if (!command) {
@@ -760,6 +915,10 @@ function handleGlobalKeydown(event) {
     event.preventDefault();
     openCommandCenter();
   }
+  if (event.key === 'Escape' && cardDetailVisible.value) {
+    closeCardDetail();
+    return;
+  }
   if (event.key === 'Escape' && commandCenterOpen.value) {
     closeCommandCenter();
   }
@@ -779,12 +938,6 @@ function runCommand(command) {
   if (command.id === 'new') {
     closeCommandCenter();
     createSession();
-    return;
-  }
-  if (command.id === 'web') {
-    enableWebSearch.value = true;
-    closeCommandCenter();
-    nextTick(focusComposerInput);
     return;
   }
   applyCommand(command.id);
@@ -903,7 +1056,7 @@ async function sendMessage() {
       docType: selectedDocType.value,
       tag: 'AI 对话',
       content,
-      enableWebSearch: enableWebSearch.value
+      enableWebSearch: true
     });
     await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
   } catch (error) {
@@ -980,6 +1133,11 @@ function buildSessionTitle(content) {
     return '新文档对话';
   }
   return text.length > 18 ? `${text.slice(0, 18)}...` : text;
+}
+
+function compactOrbitTitle(title) {
+  const text = String(title || '未命名文档').trim().replace(/\s+/g, ' ');
+  return text.length > 12 ? `${text.slice(0, 12)}...` : text;
 }
 
 function getSessionCardCount(session) {
@@ -1152,7 +1310,119 @@ async function copyText(text) {
 function askFromCard(card) {
   inputText.value = `请基于这张${card.label}继续展开：\n${card.raw.slice(0, 500)}`;
   selectedDocType.value = '智能回答';
+  closeCardDetail();
   nextTick(focusComposerInput);
+}
+
+function openCardDetail(card) {
+  selectedCard.value = card;
+  cardDetailVisible.value = true;
+}
+
+function closeCardDetail() {
+  cardDetailVisible.value = false;
+  selectedCard.value = null;
+}
+
+function getDefaultCardTitle(label) {
+  const titleMap = {
+    摘要卡: '文档摘要',
+    观点卡: '关键观点',
+    引用卡: '引用依据',
+    任务卡: '行动清单',
+    结构卡: '结构梳理',
+    来源卡: '来源引用',
+    生成卡: '生成内容'
+  };
+  return titleMap[label] || '知识卡片详情';
+}
+
+function renderMarkdown(value) {
+  const text = String(value || '').trim();
+  if (!text) {
+    return '';
+  }
+  const lines = escapeHtml(text)
+    .replace(/\r\n/g, '\n')
+    .split('\n');
+  const blocks = [];
+  let paragraph = [];
+  let listItems = [];
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      blocks.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushList = () => {
+    if (listItems.length) {
+      blocks.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
+      listItems = [];
+    }
+  };
+
+  lines.forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushParagraph();
+      flushList();
+      return;
+    }
+    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(heading[1].length + 2, 5);
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      return;
+    }
+    const bracketHeading = trimmed.match(/^【(.+)】$/);
+    if (bracketHeading) {
+      flushParagraph();
+      flushList();
+      blocks.push(`<h3>${renderInlineMarkdown(bracketHeading[1])}</h3>`);
+      return;
+    }
+    const list = trimmed.match(/^[-*]\s+(.+)$/);
+    if (list) {
+      flushParagraph();
+      listItems.push(list[1]);
+      return;
+    }
+    paragraph.push(trimmed);
+  });
+
+  flushParagraph();
+  flushList();
+  return blocks.join('');
+}
+
+function renderInlineMarkdown(value) {
+  const links = [];
+  const withMarkdownLinks = String(value || '').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, label, url) => {
+    const token = `@@NEXUSDOC_LINK_${links.length}@@`;
+    links.push(`<a href="${url}" target="_blank" rel="noreferrer">${label}</a>`);
+    return token;
+  });
+  const withAutoLinks = withMarkdownLinks.replace(/(^|[\s>])((https?:\/\/[^\s<]+))/g, (_match, prefix, url) => {
+    const token = `@@NEXUSDOC_LINK_${links.length}@@`;
+    links.push(`<a href="${url}" target="_blank" rel="noreferrer">${url}</a>`);
+    return `${prefix}${token}`;
+  });
+  return withAutoLinks
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/@@NEXUSDOC_LINK_(\d+)@@/g, (_match, index) => links[Number(index)] || '');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function formatSessionTime(date = new Date()) {
@@ -4123,6 +4393,10 @@ async function confirmDeleteSession(session) {
   background: rgba(246, 200, 111, 0.1);
 }
 
+.hidden-file-input {
+  display: none;
+}
+
 .session-scroll-list::-webkit-scrollbar-thumb,
 .message-viewport::-webkit-scrollbar-thumb {
   background: rgba(255, 214, 143, 0.2);
@@ -5105,7 +5379,8 @@ async function confirmDeleteSession(session) {
 }
 
 .composer {
-  width: min(960px, 100%);
+  width: min(1120px, 100%);
+  max-width: calc(100vw - 390px);
   margin: 0 auto;
   pointer-events: auto;
   border-radius: 24px;
@@ -5122,6 +5397,43 @@ async function confirmDeleteSession(session) {
   padding: 19px 20px 10px;
   font-size: 15px;
   line-height: 1.6;
+}
+
+.composer-source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+.composer-source-row button {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 13px;
+  color: rgba(248, 241, 228, 0.78);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 720;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.composer-source-row button span {
+  color: var(--nx-gold);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.composer-source-row button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(246, 200, 111, 0.34);
+  color: var(--nx-text);
+  background: rgba(246, 200, 111, 0.08);
 }
 
 .composer-tools {
@@ -5538,6 +5850,67 @@ async function confirmDeleteSession(session) {
   min-height: 54px;
 }
 
+.card-type-menu {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(246, 200, 111, 0.2);
+  border-radius: 13px;
+  color: rgba(248, 241, 228, 0.86);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  background: rgba(255, 255, 255, 0.045);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.card-type-menu span {
+  color: rgba(248, 241, 228, 0.46);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.card-type-menu:hover {
+  transform: translateY(-1px);
+  border-color: rgba(246, 200, 111, 0.36);
+  background: rgba(246, 200, 111, 0.08);
+}
+
+.card-type-dropdown .el-dropdown-menu {
+  min-width: 180px;
+}
+
+.result-filter-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.result-filter-bar button {
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid rgba(246, 200, 111, 0.14);
+  border-radius: 999px;
+  color: rgba(248, 241, 228, 0.64);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 720;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.result-filter-bar button.active,
+.result-filter-bar button:hover {
+  border-color: rgba(246, 200, 111, 0.38);
+  color: var(--nx-text);
+  background: rgba(246, 200, 111, 0.12);
+}
+
 .prompt-grid {
   margin-top: 8px;
 }
@@ -5620,5 +5993,1146 @@ async function confirmDeleteSession(session) {
     left: 0;
     padding: 12px 14px 16px;
   }
+}
+
+/* ChatGPT-style bottom composer dock: scoped to the right workspace panel */
+.chat-main {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.message-viewport {
+  height: 100%;
+  min-height: 0;
+  padding: 34px clamp(32px, 4vw, 56px) 280px;
+  scroll-padding-bottom: 260px;
+}
+
+.welcome-panel {
+  min-height: 100%;
+  padding-bottom: 18px;
+}
+
+.hero-stage {
+  min-height: min(660px, calc(100vh - 320px));
+}
+
+.workspace-canvas {
+  display: flex;
+  min-height: calc(100vh - 380px);
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 18px;
+  max-width: 1180px;
+  padding: 28px 0 18px;
+}
+
+.generated-layout,
+.card-skeleton-grid {
+  width: 100%;
+}
+
+.composer-wrap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 48;
+  padding: 26px clamp(32px, 4.8vw, 64px) 30px;
+  pointer-events: none;
+}
+
+.composer-wrap::before {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 230px;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 92%, rgba(246, 200, 111, 0.12), transparent 46%),
+    linear-gradient(
+      to bottom,
+      rgba(5, 7, 11, 0),
+      rgba(5, 7, 11, 0.5) 44%,
+      rgba(5, 7, 11, 0.9)
+    );
+}
+
+.composer {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 1040px);
+  max-width: 1040px;
+  margin: 0 auto;
+  border: 1px solid rgba(246, 200, 111, 0.28);
+  border-radius: 26px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.024)),
+    rgba(10, 11, 15, 0.64);
+  box-shadow:
+    0 24px 90px rgba(0, 0, 0, 0.42),
+    0 0 60px rgba(246, 200, 111, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  pointer-events: auto;
+}
+
+.composer:focus-within {
+  border-color: rgba(246, 200, 111, 0.48);
+  box-shadow:
+    0 28px 100px rgba(0, 0, 0, 0.48),
+    0 0 72px rgba(246, 200, 111, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.composer textarea {
+  min-height: 58px;
+  padding: 20px 22px 10px;
+}
+
+.composer-source-row {
+  padding: 0 18px 14px;
+}
+
+.composer-tools {
+  padding: 0 18px 18px;
+}
+
+@media (max-width: 1439px) {
+  .message-viewport {
+    padding-right: 34px;
+    padding-left: 34px;
+  }
+
+  .composer-wrap {
+    padding-right: 34px;
+    padding-left: 34px;
+  }
+
+  .composer {
+    max-width: 960px;
+  }
+}
+
+@media (max-width: 1199px) {
+  .message-viewport {
+    padding-bottom: 310px;
+    scroll-padding-bottom: 290px;
+  }
+
+  .workspace-canvas {
+    min-height: calc(100vh - 420px);
+  }
+
+  .composer-wrap {
+    padding: 22px 28px 24px;
+  }
+}
+
+@media (max-width: 900px) {
+  .message-viewport {
+    padding: 20px 18px 340px;
+    scroll-padding-bottom: 320px;
+  }
+
+  .composer-wrap {
+    padding: 16px 16px 18px;
+  }
+
+  .composer-source-row {
+    gap: 8px;
+  }
+
+  .composer-tools,
+  .composer-left-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .composer-left-tools,
+  .composer select,
+  .card-type-menu,
+  .send-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .message-viewport {
+    padding-bottom: 380px;
+    scroll-padding-bottom: 360px;
+  }
+
+  .composer-wrap {
+    padding: 12px 12px 14px;
+  }
+
+  .composer {
+    border-radius: 22px;
+  }
+
+  .composer-source-row button {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+  }
+}
+
+/* Hero refinement: tighter title and meaningful recent-doc orbit context */
+.hero-stage {
+  grid-template-columns: minmax(0, 0.95fr) minmax(420px, 0.86fr);
+  min-height: min(620px, calc(100vh - 330px));
+  gap: clamp(26px, 4vw, 54px);
+}
+
+.hero-copy {
+  max-width: 720px;
+}
+
+.hero-copy h2 {
+  max-width: 720px;
+  margin-top: 16px;
+  font-size: clamp(44px, 4.4vw, 76px);
+  line-height: 1.06;
+  letter-spacing: -0.045em;
+}
+
+.hero-copy h2 span {
+  background: linear-gradient(90deg, #ffe8a8 0%, #f6c86f 48%, #d88b2a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgba(246, 200, 111, 0.16));
+}
+
+.hero-subtitle {
+  max-width: 640px;
+  margin-top: 18px;
+  color: rgba(248, 241, 228, 0.72);
+  font-size: clamp(15px, 1vw, 16.5px);
+  line-height: 1.75;
+}
+
+.hero-flow {
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.hero-flow span {
+  min-height: 30px;
+  padding: 0 11px;
+  border-color: rgba(246, 200, 111, 0.14);
+  color: rgba(248, 241, 228, 0.74);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.034);
+}
+
+.hero-flow i {
+  width: 18px;
+  opacity: 0.74;
+}
+
+.ocean-stage {
+  width: min(100%, 540px);
+  min-height: 500px;
+  transform: translateX(2px) scale(0.92);
+}
+
+.orbit-relation-note {
+  position: absolute;
+  top: 61%;
+  left: 50%;
+  z-index: 4;
+  width: max-content;
+  max-width: 210px;
+  padding: 6px 10px;
+  border: 1px solid rgba(246, 200, 111, 0.14);
+  border-radius: 999px;
+  color: rgba(248, 241, 228, 0.55);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1;
+  background: rgba(10, 11, 15, 0.48);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transform: translateX(-50%);
+}
+
+.orbit-doc-card {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  width: 132px;
+  min-height: 78px;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px dashed rgba(246, 200, 111, 0.18);
+  border-radius: 16px;
+  color: rgba(248, 241, 228, 0.78);
+  background:
+    linear-gradient(135deg, rgba(246, 200, 111, 0.07), rgba(255, 255, 255, 0.025)),
+    rgba(12, 13, 18, 0.54);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: orbitFloatSmall 5.5s ease-in-out infinite;
+}
+
+.orbit-doc-card::before {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 2px;
+  place-items: center;
+  border-radius: 7px;
+  color: #1d1408;
+  font-size: 12px;
+  font-weight: 900;
+  content: "文";
+  background: linear-gradient(135deg, #ffe4a7, #d89531);
+}
+
+.orbit-doc-card small {
+  color: rgba(246, 200, 111, 0.72);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.orbit-doc-card strong {
+  overflow: hidden;
+  color: rgba(248, 241, 228, 0.9);
+  font-size: 12px;
+  line-height: 1.28;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orbit-doc-card span {
+  color: rgba(248, 241, 228, 0.48);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.orbit-doc-card::after {
+  position: absolute;
+  content: "";
+  border-top: 1px dashed rgba(246, 200, 111, 0.18);
+  transform-origin: left center;
+}
+
+.orbit-doc-card:hover {
+  border-color: rgba(246, 200, 111, 0.34);
+  background:
+    linear-gradient(135deg, rgba(246, 200, 111, 0.1), rgba(255, 255, 255, 0.035)),
+    rgba(18, 20, 26, 0.66);
+}
+
+.orbit-doc-card.is-doc-1 {
+  top: 16%;
+  left: 11%;
+}
+
+.orbit-doc-card.is-doc-1::after {
+  top: 50%;
+  left: 100%;
+  width: 86px;
+  transform: rotate(19deg);
+}
+
+.orbit-doc-card.is-doc-2 {
+  right: 2%;
+  bottom: 18%;
+  animation-delay: -1.2s;
+}
+
+.orbit-doc-card.is-doc-2::after {
+  top: 18px;
+  right: 100%;
+  width: 80px;
+  transform: rotate(155deg);
+}
+
+.orbit-doc-card.is-doc-3 {
+  bottom: 4%;
+  left: 19%;
+  animation-delay: -2.4s;
+}
+
+.orbit-doc-card.is-doc-3::after {
+  right: -78px;
+  bottom: 26px;
+  width: 78px;
+  transform: rotate(-24deg);
+}
+
+@keyframes orbitFloatSmall {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@media (max-width: 1439px) {
+  .hero-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.74fr);
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(42px, 4.1vw, 66px);
+  }
+
+  .ocean-stage {
+    transform: translateX(0) scale(0.84);
+  }
+
+  .orbit-doc-card {
+    width: 122px;
+  }
+
+  .orbit-doc-card.is-doc-3 {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .hero-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .ocean-stage {
+    width: min(100%, 520px);
+    min-height: 390px;
+    transform: scale(0.82);
+  }
+
+  .orbit-doc-card.is-doc-2 {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-copy h2 {
+    font-size: clamp(36px, 10vw, 50px);
+    line-height: 1.08;
+  }
+
+  .hero-subtitle {
+    font-size: 14px;
+  }
+
+  .orbit-doc-card,
+  .orbit-relation-note {
+    display: none;
+  }
+}
+
+/* Result board polish: remove empty source rail and tighten readable knowledge cards */
+.workspace-canvas {
+  width: min(100%, 1180px);
+  padding-bottom: 230px;
+}
+
+.generated-layout {
+  display: block;
+  width: 100%;
+}
+
+.generated-layout.has-sources {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  gap: 22px;
+  align-items: start;
+}
+
+.generated-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  width: 100%;
+}
+
+.result-filter-bar {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  gap: 9px;
+}
+
+.result-filter-bar button {
+  height: 32px;
+  padding: 0 12px;
+  border-color: rgba(246, 200, 111, 0.13);
+  color: rgba(248, 241, 228, 0.6);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.result-filter-bar button.active,
+.result-filter-bar button:hover {
+  border-color: rgba(246, 200, 111, 0.38);
+  color: rgba(255, 246, 225, 0.92);
+  background: rgba(246, 200, 111, 0.11);
+}
+
+.knowledge-card {
+  --card-accent: var(--nx-gold);
+  position: relative;
+  display: flex;
+  min-height: 218px;
+  max-height: 360px;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 22px 24px;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 22px;
+  color: rgba(248, 241, 228, 0.76);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+    rgba(13, 14, 19, 0.78);
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.knowledge-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  content: "";
+  background: linear-gradient(90deg, transparent, var(--card-accent), transparent);
+  opacity: 0.64;
+}
+
+.knowledge-card.summary {
+  --card-accent: #f6c86f;
+}
+
+.knowledge-card.insight {
+  --card-accent: #72a9ff;
+}
+
+.knowledge-card.action {
+  --card-accent: #ffb45f;
+}
+
+.knowledge-card.structure {
+  --card-accent: #8fd6a3;
+}
+
+.knowledge-card.generation {
+  --card-accent: #6ed6d1;
+}
+
+.knowledge-card.citation {
+  --card-accent: #b88cff;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card-head span {
+  color: var(--card-accent);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+}
+
+.card-head small {
+  color: rgba(248, 241, 228, 0.44);
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.knowledge-card h3 {
+  margin: 0 0 12px;
+  color: rgba(255, 246, 225, 0.95);
+  font-size: clamp(19px, 1.5vw, 23px);
+  font-weight: 780;
+  line-height: 1.3;
+}
+
+.knowledge-card > p,
+.knowledge-card ul {
+  max-height: 132px;
+  overflow: auto;
+  padding-right: 5px;
+}
+
+.knowledge-card > p {
+  margin: 0 0 12px;
+  color: rgba(248, 241, 228, 0.76);
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.knowledge-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding-left: 18px;
+  color: rgba(248, 241, 228, 0.72);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.knowledge-card > p::-webkit-scrollbar,
+.knowledge-card ul::-webkit-scrollbar {
+  width: 4px;
+}
+
+.knowledge-card > p::-webkit-scrollbar-thumb,
+.knowledge-card ul::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(246, 200, 111, 0.28);
+}
+
+.source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 13px;
+}
+
+.source-chips button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(246, 200, 111, 0.14);
+  border-radius: 999px;
+  color: rgba(248, 241, 228, 0.62);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card-actions button {
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 11px;
+  color: rgba(248, 241, 228, 0.68);
+  font-size: 12px;
+  font-weight: 720;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.card-actions button:hover,
+.source-chips button:hover {
+  color: #1a1208;
+  border-color: rgba(246, 200, 111, 0.42);
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+}
+
+.knowledge-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--card-accent) 45%, rgba(246, 200, 111, 0.22));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.032)),
+    rgba(16, 17, 23, 0.88);
+}
+
+.source-rail {
+  position: sticky;
+  top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.source-rail-head {
+  padding: 0 2px;
+}
+
+.citation-card {
+  padding: 16px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(13, 14, 19, 0.76);
+}
+
+.citation-card strong {
+  color: rgba(255, 246, 225, 0.9);
+  line-height: 1.35;
+}
+
+.citation-card p {
+  color: rgba(248, 241, 228, 0.66);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+@media (min-width: 1500px) {
+  .generated-layout:not(.has-sources) .generated-card-grid {
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .generated-layout.has-sources {
+    display: block;
+  }
+
+  .generated-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .source-rail {
+    position: static;
+    margin-top: 18px;
+  }
+}
+
+/* Card detail refinement: darker cards, readable previews, glass modal */
+.nexus-chat-shell {
+  --nx-card-bg: rgba(13, 15, 21, 0.82);
+  --nx-card-bg-soft: rgba(18, 20, 28, 0.74);
+  --nx-card-glass: rgba(255, 255, 255, 0.035);
+  --nx-card-border: rgba(246, 200, 111, 0.16);
+  --nx-card-border-hover: rgba(246, 200, 111, 0.34);
+  --nx-card-highlight: rgba(246, 200, 111, 0.08);
+  --nx-card-text: rgba(255, 247, 231, 0.94);
+  --nx-card-text-soft: rgba(248, 241, 228, 0.76);
+  --nx-card-text-muted: rgba(248, 241, 228, 0.48);
+}
+
+.knowledge-card {
+  min-height: 220px;
+  max-height: 340px;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.1), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    var(--nx-card-bg);
+  border-color: var(--nx-card-border);
+  box-shadow:
+    0 18px 56px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.knowledge-card:hover,
+.knowledge-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--nx-card-border-hover);
+  outline: none;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.14), transparent 36%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(15, 17, 24, 0.88);
+}
+
+.knowledge-card::after {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 9px;
+  color: rgba(246, 200, 111, 0.62);
+  content: "↗";
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.026);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+
+.knowledge-card:hover::after,
+.knowledge-card:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.card-head {
+  padding-right: 32px;
+}
+
+.card-head span {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(246, 200, 111, 0.15);
+  border-radius: 999px;
+  color: var(--card-accent);
+  background: rgba(246, 200, 111, 0.055);
+  font-size: 12px;
+  font-weight: 780;
+  letter-spacing: 0.04em;
+}
+
+.card-head small {
+  color: rgba(248, 241, 228, 0.34);
+  font-size: 11px;
+}
+
+.knowledge-card h3 {
+  color: rgba(255, 247, 231, 0.96);
+  font-size: clamp(20px, 1.45vw, 22px);
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.card-content-preview {
+  display: -webkit-box !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
+.knowledge-card > p.card-content-preview {
+  color: var(--nx-card-text-soft);
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.markdown-preview {
+  color: var(--nx-card-text-soft);
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.markdown-preview :deep(p),
+.markdown-preview :deep(ul),
+.markdown-preview :deep(h3),
+.markdown-preview :deep(h4),
+.markdown-preview :deep(h5) {
+  margin: 0;
+}
+
+.markdown-preview :deep(strong) {
+  color: rgba(255, 247, 231, 0.95);
+  font-weight: 800;
+}
+
+.markdown-preview :deep(a) {
+  color: rgba(246, 200, 111, 0.82);
+  text-decoration: none;
+}
+
+.knowledge-card ul.card-content-preview {
+  color: rgba(248, 241, 228, 0.72);
+}
+
+.card-read-more {
+  margin: 2px 0 12px;
+  color: rgba(246, 200, 111, 0.72);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.card-detail-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.card-detail-modal {
+  --card-accent: var(--nx-gold);
+  display: flex;
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(246, 200, 111, 0.22);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(246, 200, 111, 0.1), transparent 32%),
+    rgba(12, 14, 20, 0.92);
+  box-shadow: 0 34px 120px rgba(0, 0, 0, 0.62);
+}
+
+.card-detail-modal.summary {
+  --card-accent: #f6c86f;
+}
+
+.card-detail-modal.insight {
+  --card-accent: #72a9ff;
+}
+
+.card-detail-modal.action {
+  --card-accent: #ffb45f;
+}
+
+.card-detail-modal.structure {
+  --card-accent: #8fd6a3;
+}
+
+.card-detail-modal.generation {
+  --card-accent: #6ed6d1;
+}
+
+.card-detail-modal.citation {
+  --card-accent: #b88cff;
+}
+
+.card-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid rgba(246, 200, 111, 0.12);
+}
+
+.card-detail-type {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 999px;
+  color: var(--card-accent);
+  font-size: 12px;
+  font-weight: 820;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.card-detail-header h2 {
+  margin: 12px 0 6px;
+  color: rgba(255, 247, 231, 0.96);
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.18;
+}
+
+.card-detail-header small {
+  color: rgba(248, 241, 228, 0.44);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.detail-close {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 12px;
+  color: rgba(248, 241, 228, 0.74);
+  font-size: 22px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.detail-close:hover {
+  color: #1a1208;
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+}
+
+.card-detail-body {
+  overflow-y: auto;
+  padding: 24px 28px;
+  color: rgba(248, 241, 228, 0.8);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.card-detail-body :deep(p) {
+  margin: 0 0 16px;
+  white-space: pre-wrap;
+}
+
+.card-detail-body :deep(h3),
+.card-detail-body :deep(h4),
+.card-detail-body :deep(h5) {
+  margin: 24px 0 12px;
+  color: rgba(255, 247, 231, 0.96);
+  font-weight: 820;
+  line-height: 1.32;
+}
+
+.card-detail-body :deep(h3) {
+  font-size: 20px;
+}
+
+.card-detail-body :deep(h4),
+.card-detail-body :deep(h5) {
+  font-size: 17px;
+}
+
+.card-detail-body :deep(ul) {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding-left: 20px;
+}
+
+.card-detail-body :deep(li) {
+  padding-left: 2px;
+}
+
+.card-detail-body :deep(strong) {
+  color: rgba(255, 247, 231, 0.96);
+  font-weight: 820;
+}
+
+.card-detail-body :deep(code) {
+  padding: 2px 6px;
+  border: 1px solid rgba(246, 200, 111, 0.13);
+  border-radius: 7px;
+  color: rgba(246, 200, 111, 0.86);
+  background: rgba(255, 255, 255, 0.04);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.card-detail-body :deep(a) {
+  color: rgba(246, 200, 111, 0.86);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(246, 200, 111, 0.26);
+}
+
+.card-detail-body :deep(a:hover) {
+  color: #ffe1a3;
+  border-bottom-color: rgba(246, 200, 111, 0.56);
+}
+
+.card-detail-source-wrap {
+  padding: 0 28px 6px;
+}
+
+.card-detail-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.card-detail-sources span {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 999px;
+  color: rgba(246, 200, 111, 0.72);
+  background: rgba(255, 255, 255, 0.032);
+}
+
+.card-detail-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 18px 28px 24px;
+  border-top: 1px solid rgba(246, 200, 111, 0.12);
+}
+
+.card-detail-footer button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 12px;
+  color: rgba(248, 241, 228, 0.72);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.card-detail-footer button:hover {
+  color: #1a1208;
+  border-color: rgba(246, 200, 111, 0.42);
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+}
+
+@media (max-width: 768px) {
+  .card-detail-mask {
+    align-items: stretch;
+    padding: 16px;
+  }
+
+  .card-detail-modal {
+    width: 100%;
+    max-height: calc(100vh - 32px);
+  }
+
+  .card-detail-header,
+  .card-detail-body,
+  .card-detail-footer {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .card-detail-footer button {
+    flex: 1 1 100%;
+  }
+}
+
+/* Final contrast fix: keep result cards readable before hover */
+.knowledge-card {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.12), transparent 32%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    rgba(10, 12, 18, 0.94) !important;
+  border-color: rgba(246, 200, 111, 0.28) !important;
+  box-shadow:
+    0 18px 56px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
+  backdrop-filter: blur(10px) saturate(1.02);
+  -webkit-backdrop-filter: blur(10px) saturate(1.02);
+}
+
+.knowledge-card:hover,
+.knowledge-card:focus-visible {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.14), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.042), rgba(255, 255, 255, 0.012)),
+    rgba(12, 14, 20, 0.96) !important;
+  border-color: rgba(246, 200, 111, 0.36) !important;
+}
+
+.knowledge-card h3 {
+  color: rgba(255, 247, 231, 0.98) !important;
+}
+
+.knowledge-card > p.card-content-preview,
+.knowledge-card ul.card-content-preview,
+.knowledge-card li {
+  color: rgba(248, 241, 228, 0.82) !important;
+}
+
+.card-head small {
+  color: rgba(248, 241, 228, 0.48) !important;
+}
+
+.card-read-more {
+  color: rgba(246, 200, 111, 0.82) !important;
 }
 </style>
