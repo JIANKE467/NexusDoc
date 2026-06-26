@@ -1,5 +1,6 @@
 package com.nexusdoc.controller;
 
+import com.nexusdoc.common.DeviceIdUtils;
 import com.nexusdoc.common.result.ApiResponse;
 import com.nexusdoc.dto.ChatAskRequest;
 import com.nexusdoc.service.ChatService;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 
 @RestController
@@ -23,12 +25,15 @@ public class ChatController {
     private final ChatService chatService;
 
     @PostMapping("/ask")
-    public ApiResponse<ChatAnswerVO> ask(@RequestBody ChatAskRequest request) {
+    public ApiResponse<ChatAnswerVO> ask(@RequestBody ChatAskRequest request,
+                                          HttpServletRequest servletRequest) {
+        request.setDeviceId(DeviceIdUtils.getDeviceId(servletRequest));
         return ApiResponse.success(chatService.ask(request));
     }
 
     @GetMapping("/list")
-    public ApiResponse<List<ChatRecordVO>> listRecords(@RequestParam Long documentId) {
-        return ApiResponse.success(chatService.listRecords(documentId));
+    public ApiResponse<List<ChatRecordVO>> listRecords(@RequestParam Long documentId,
+                                                       HttpServletRequest request) {
+        return ApiResponse.success(chatService.listRecords(documentId, DeviceIdUtils.getDeviceId(request)));
     }
 }

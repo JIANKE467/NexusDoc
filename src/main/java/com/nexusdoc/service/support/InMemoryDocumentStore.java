@@ -33,9 +33,9 @@ public class InMemoryDocumentStore {
         documents.put(document.getId(), document);
     }
 
-    public List<Document> listDocuments(Long userId) {
+    public List<Document> listDocuments(String deviceId) {
         return documents.values().stream()
-                .filter(document -> document.getUserId().equals(userId))
+                .filter(document -> deviceId.equals(document.getDeviceId()))
                 .sorted(Comparator.comparing(Document::getCreateTime).reversed())
                 .toList();
     }
@@ -44,10 +44,23 @@ public class InMemoryDocumentStore {
         return documents.get(id);
     }
 
+    public Document findDocument(Long id, String deviceId) {
+        Document document = documents.get(id);
+        return document != null && deviceId.equals(document.getDeviceId()) ? document : null;
+    }
+
     public void deleteDocument(Long id) {
         documents.remove(id);
         packages.remove(id);
         chatRecords.remove(id);
+    }
+
+    public void deleteDocument(Long id, String deviceId) {
+        Document document = documents.get(id);
+        if (document == null || !deviceId.equals(document.getDeviceId())) {
+            return;
+        }
+        deleteDocument(id);
     }
 
     public void savePackage(DocumentPackage documentPackage) {
@@ -76,6 +89,13 @@ public class InMemoryDocumentStore {
 
     public List<ChatRecord> listChatRecords(Long documentId) {
         return chatRecords.getOrDefault(documentId, List.of()).stream()
+                .sorted(Comparator.comparing(ChatRecord::getCreateTime))
+                .toList();
+    }
+
+    public List<ChatRecord> listChatRecords(Long documentId, String deviceId) {
+        return chatRecords.getOrDefault(documentId, List.of()).stream()
+                .filter(record -> deviceId.equals(record.getDeviceId()))
                 .sorted(Comparator.comparing(ChatRecord::getCreateTime))
                 .toList();
     }

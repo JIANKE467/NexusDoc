@@ -1,5 +1,6 @@
 package com.nexusdoc.controller;
 
+import com.nexusdoc.common.DeviceIdUtils;
 import com.nexusdoc.common.result.ApiResponse;
 import com.nexusdoc.service.FileMcpService;
 import com.nexusdoc.vo.FileExtractResultVO;
@@ -12,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/mcp/file")
@@ -36,10 +39,12 @@ public class FileMcpController {
                                                            @RequestParam(required = false) String mode,
                                                            @RequestParam(required = false) Boolean enableWebSearch,
                                                            @RequestParam(required = false) String cardTypes,
-                                                           @RequestParam(required = false) String requirement) {
+                                                           @RequestParam(required = false) String requirement,
+                                                           HttpServletRequest request) {
         return ApiResponse.success(fileMcpService.generateFromFile(
                 file,
                 userId,
+                DeviceIdUtils.getDeviceId(request),
                 mode,
                 enableWebSearch,
                 cardTypes,

@@ -1,8 +1,12 @@
 package com.nexusdoc.controller;
 
+import com.nexusdoc.common.DeviceIdUtils;
 import com.nexusdoc.common.result.ApiResponse;
+import com.nexusdoc.dto.DeviceDataImportRequest;
 import com.nexusdoc.dto.DocumentGenerateRequest;
 import com.nexusdoc.service.DocumentService;
+import com.nexusdoc.vo.DeviceDataExportVO;
+import com.nexusdoc.vo.DeviceDataImportVO;
 import com.nexusdoc.vo.DocumentDetailVO;
 import com.nexusdoc.vo.DocumentListVO;
 import com.nexusdoc.vo.WebSearchResultVO;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -35,12 +40,17 @@ public class DocumentController {
     private final DocumentService documentService;
 
     @PostMapping("/generate")
-    public ApiResponse<DocumentDetailVO> generateDocument(@RequestBody DocumentGenerateRequest request) {
+    public ApiResponse<DocumentDetailVO> generateDocument(@RequestBody DocumentGenerateRequest request,
+                                                          HttpServletRequest servletRequest) {
+        request.setDeviceId(DeviceIdUtils.getDeviceId(servletRequest));
         return ApiResponse.success(documentService.generateDocument(request));
     }
 
     @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter generateDocumentStream(@RequestBody DocumentGenerateRequest request, HttpServletResponse response) {
+    public SseEmitter generateDocumentStream(@RequestBody DocumentGenerateRequest request,
+                                             HttpServletRequest servletRequest,
+                                             HttpServletResponse response) {
+        request.setDeviceId(DeviceIdUtils.getDeviceId(servletRequest));
         response.setHeader("Cache-Control", "no-cache");
         response.setHeader("Connection", "keep-alive");
         response.setHeader("X-Accel-Buffering", "no");
@@ -85,19 +95,32 @@ public class DocumentController {
     }
 
     @GetMapping("/list")
-    public ApiResponse<List<DocumentListVO>> listDocuments(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(documentService.listDocuments(userId));
+    public ApiResponse<List<DocumentListVO>> listDocuments(HttpServletRequest request) {
+        return ApiResponse.success(documentService.listDocuments(DeviceIdUtils.getDeviceId(request)));
     }
 
     @GetMapping("/detail/{documentId}")
-    public ApiResponse<DocumentDetailVO> getDocumentDetail(@PathVariable Long documentId) {
-        return ApiResponse.success(documentService.getDocumentDetail(documentId));
+    public ApiResponse<DocumentDetailVO> getDocumentDetail(@PathVariable Long documentId,
+                                                           HttpServletRequest request) {
+        return ApiResponse.success(documentService.getDocumentDetail(documentId, DeviceIdUtils.getDeviceId(request)));
     }
 
     @DeleteMapping("/{documentId}")
-    public ApiResponse<Void> deleteDocument(@PathVariable Long documentId) {
-        documentService.deleteDocument(documentId);
+    public ApiResponse<Void> deleteDocument(@PathVariable Long documentId,
+                                            HttpServletRequest request) {
+        documentService.deleteDocument(documentId, DeviceIdUtils.getDeviceId(request));
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/device/export")
+    public ApiResponse<DeviceDataExportVO> exportDeviceData(HttpServletRequest request) {
+        return ApiResponse.success(documentService.exportDeviceData(DeviceIdUtils.getDeviceId(request)));
+    }
+
+    @PostMapping("/device/import")
+    public ApiResponse<DeviceDataImportVO> importDeviceData(@RequestBody DeviceDataImportRequest importRequest,
+                                                            HttpServletRequest request) {
+        return ApiResponse.success(documentService.importDeviceData(DeviceIdUtils.getDeviceId(request), importRequest));
     }
 
     private Map<String, Object> buildSourceEvent(WebSearchResultVO source) {

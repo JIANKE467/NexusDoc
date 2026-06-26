@@ -1,4 +1,5 @@
 import request from './request';
+import { getOrCreateDeviceId } from '../utils/deviceId';
 
 export function generateDocument(data) {
   return request.post('/document/generate', data);
@@ -9,6 +10,7 @@ export async function streamGenerateDocument(data, handlers = {}) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-Device-Id': getOrCreateDeviceId(),
       Accept: 'text/event-stream'
     },
     body: JSON.stringify(data)
@@ -124,7 +126,7 @@ function dispatchStreamPayload(payload, handlers) {
 }
 
 export function listDocuments(userId) {
-  return request.get('/document/list', { params: { userId } });
+  return request.get('/document/list', { params: userId == null ? {} : { userId } });
 }
 
 export function getDocumentDetail(documentId) {
@@ -133,4 +135,12 @@ export function getDocumentDetail(documentId) {
 
 export function deleteDocument(documentId) {
   return request.delete(`/document/${documentId}`);
+}
+
+export function exportDeviceData() {
+  return request.get('/document/device/export');
+}
+
+export function importDeviceData(data) {
+  return request.post('/document/device/import', data);
 }

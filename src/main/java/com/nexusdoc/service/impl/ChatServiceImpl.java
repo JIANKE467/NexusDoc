@@ -44,20 +44,24 @@ public class ChatServiceImpl implements ChatService {
     public ChatAnswerVO ask(ChatAskRequest request) {
         validateAskRequest(request);
         Long userId = resolveUserId(request.getUserId());
+        String deviceId = resolveDeviceId(request.getDeviceId());
 
         Document document;
         boolean inMemoryMode = false;
         try {
-            document = documentMapper.selectById(request.getDocumentId());
+            document = documentMapper.selectOne(new LambdaQueryWrapper<Document>()
+                    .eq(Document::getId, request.getDocumentId())
+                    .eq(Document::getDeviceId, deviceId)
+                    .last("LIMIT 1"));
         } catch (RuntimeException exception) {
             if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
                 throw exception;
             }
             inMemoryMode = true;
-            document = inMemoryDocumentStore.findDocument(request.getDocumentId());
+            document = inMemoryDocumentStore.findDocument(request.getDocumentId(), deviceId);
             log.warn("数据库未连接，文档追问使用内存临时存储：{}", exception.getMessage());
         }
-        if (document == null || !document.getUserId().equals(userId)) {
+        if (document == null) {
             throw new BusinessException("文档不存在或无权访问");
         }
 
@@ -91,6 +95,7 @@ public class ChatServiceImpl implements ChatService {
 
         ChatRecord record = new ChatRecord();
         record.setUserId(userId);
+        record.setDeviceId(deviceId);
         record.setDocumentId(request.getDocumentId());
         record.setUserQuestion(request.getQuestion().trim());
         record.setAiAnswer(answer);
@@ -105,8 +110,8 @@ public class ChatServiceImpl implements ChatService {
             }
         }
 
-        log.info("文档追问成功，userId={}, documentId={}, chatRecordId={}",
-                userId, request.getDocumentId(), record.getId());
+        log.info("文档追问成功，deviceId={}, documentId={}, chatRecordId={}",
+                maskDeviceId(deviceId), request.getDocumentId(), record.getId());
         return ChatAnswerVO.builder()
                 .chatRecordId(record.getId())
                 .documentId(record.getDocumentId())
@@ -117,12 +122,17 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public List<ChatRecordVO> listRecords(Long documentId) {
+    public List<ChatRecordVO> listRecords(Long documentId, String deviceId) {
         if (documentId == null) {
             throw new BusinessException("documentId 不能为空");
         }
+        String resolvedDeviceId = resolveDeviceId(deviceId);
         try {
-            if (documentMapper.selectById(documentId) == null) {
+            Document document = documentMapper.selectOne(new LambdaQueryWrapper<Document>()
+                    .eq(Document::getId, documentId)
+                    .eq(Document::getDeviceId, resolvedDeviceId)
+                    .last("LIMIT 1"));
+            if (document == null) {
                 throw new BusinessException("文档不存在");
             }
         } catch (BusinessException exception) {
@@ -131,11 +141,11 @@ public class ChatServiceImpl implements ChatService {
             if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
                 throw exception;
             }
-            if (inMemoryDocumentStore.findDocument(documentId) == null) {
+            if (inMemoryDocumentStore.findDocument(documentId, resolvedDeviceId) == null) {
                 throw new BusinessException("文档不存在");
             }
             log.warn("数据库未连接，追问记录使用内存临时存储：{}", exception.getMessage());
-            return inMemoryDocumentStore.listChatRecords(documentId).stream()
+            return inMemoryDocumentStore.listChatRecords(documentId, resolvedDeviceId).stream()
                     .map(record -> ChatRecordVO.builder()
                             .id(record.getId())
                             .question(record.getUserQuestion())
@@ -147,6 +157,7 @@ public class ChatServiceImpl implements ChatService {
         try {
             return chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
                             .eq(ChatRecord::getDocumentId, documentId)
+                            .eq(ChatRecord::getDeviceId, resolvedDeviceId)
                             .orderByAsc(ChatRecord::getCreateTime))
                     .stream()
                     .map(record -> ChatRecordVO.builder()
@@ -178,6 +189,21 @@ public class ChatServiceImpl implements ChatService {
 
     private Long resolveUserId(Long userId) {
         return userId == null ? ANONYMOUS_USER_ID : userId;
+    }
+
+    private String resolveDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            throw new BusinessException("设备标识缺失，请刷新页面后重试");
+        }
+        return deviceId.trim();
+    }
+
+    private String maskDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            return "unknown";
+        }
+        String value = deviceId.trim();
+        return value.length() <= 12 ? value : value.substring(0, 12) + "***";
     }
 
     private String buildSearchQuery(Document document, String question) {

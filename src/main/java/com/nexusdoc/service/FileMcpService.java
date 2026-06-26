@@ -13,6 +13,7 @@ public interface FileMcpService {
 
     FileMcpGenerateVO generateFromFile(MultipartFile file,
                                        Long userId,
+                                       String deviceId,
                                        String mode,
                                        Boolean enableWebSearch,
                                        String cardTypes,

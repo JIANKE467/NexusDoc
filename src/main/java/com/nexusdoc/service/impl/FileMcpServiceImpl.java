@@ -51,6 +51,7 @@ public class FileMcpServiceImpl implements FileMcpService {
     @Override
     public FileMcpGenerateVO generateFromFile(MultipartFile file,
                                               Long userId,
+                                              String deviceId,
                                               String mode,
                                               Boolean enableWebSearch,
                                               String cardTypes,
@@ -59,6 +60,7 @@ public class FileMcpServiceImpl implements FileMcpService {
         PreparedFileContent preparedContent = buildDocumentContent(extractResult, cardTypes, requirement);
         DocumentGenerateRequest request = new DocumentGenerateRequest();
         request.setUserId(userId == null ? ANONYMOUS_USER_ID : userId);
+        request.setDeviceId(deviceId);
         request.setTitle(buildTitle(extractResult.getFileName()));
         request.setDocType(resolveDocType(mode));
         request.setTag("FileInsight MCP");

@@ -529,7 +529,14 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
-import { generateDocument, getDocumentDetail, listDocuments, streamGenerateDocument } from '../api/document';
+import {
+  exportDeviceData,
+  generateDocument,
+  getDocumentDetail,
+  importDeviceData,
+  listDocuments,
+  streamGenerateDocument
+} from '../api/document';
 import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
 import { ANONYMOUS_USER_ID } from '../config/user';
 import {
@@ -716,6 +723,8 @@ const commands = computed(() => [
   { id: 'trend', icon: 'T', title: '分析趋势与风险', description: '生成趋势、风险和隐藏问题卡', docType: '趋势分析' },
   { id: 'history', icon: 'H', title: '打开历史记录', description: '进入历史工作台库' },
   { id: 'folders', icon: 'F', title: '打开档案夹', description: '查看知识沉淀空间' },
+  { id: 'export-device-data', icon: 'E', title: '导出当前设备数据', description: '下载本设备的工作台、卡片和追问备份' },
+  { id: 'import-device-data', icon: 'U', title: '导入设备数据', description: '从 JSON 备份恢复到当前匿名设备' },
   { id: 'new', icon: 'N', title: '新建工作台', description: '创建一个新的卡片生成工作台' }
 ]);
 const filteredCommands = computed(() => {
@@ -1093,6 +1102,16 @@ function handleGlobalKeydown(event) {
 }
 
 function runCommand(command) {
+  if (command.id === 'export-device-data') {
+    closeCommandCenter();
+    exportCurrentDeviceData();
+    return;
+  }
+  if (command.id === 'import-device-data') {
+    closeCommandCenter();
+    importCurrentDeviceData();
+    return;
+  }
   if (command.id === 'history') {
     closeCommandCenter();
     router.push('/history');
@@ -1109,6 +1128,114 @@ function runCommand(command) {
     return;
   }
   applyCommand(command.id);
+}
+
+async function exportCurrentDeviceData() {
+  try {
+    const backup = await exportDeviceData();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    link.href = url;
+    link.download = `nexusdoc-device-backup-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    ElMessage.success(`已导出 ${backup?.documentCount || 0} 个工作台`);
+  } catch (error) {
+    ElMessage.error(error?.message || '导出失败，请稍后重试');
+  }
+}
+
+async function importCurrentDeviceData() {
+  try {
+    const file = await chooseJsonBackupFile();
+    if (!file) {
+      return;
+    }
+    const backup = JSON.parse(await file.text());
+    const result = await importDeviceData(normalizeDeviceBackupPayload(backup));
+    await syncServerDocumentsToSessions();
+    ElMessage.success(`已导入 ${result?.importedDocuments || 0} 个工作台`);
+  } catch (error) {
+    if (error?.message?.includes('JSON')) {
+      ElMessage.error('导入文件格式不正确，请选择 NexusDoc JSON 备份');
+      return;
+    }
+    ElMessage.error(error?.message || '导入失败，请检查备份文件');
+  }
+}
+
+function chooseJsonBackupFile() {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      resolve(input.files?.[0] || null);
+      input.remove();
+    }, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+function normalizeDeviceBackupPayload(backup) {
+  if (Array.isArray(backup)) {
+    return { documents: backup };
+  }
+  if (Array.isArray(backup?.documents)) {
+    return { documents: backup.documents };
+  }
+  throw new Error('Invalid NexusDoc backup JSON');
+}
+
+async function syncServerDocumentsToSessions() {
+  const docs = await listDocuments();
+  const details = await Promise.allSettled(
+    docs.map((doc) => getDocumentDetail(doc.documentId))
+  );
+  const serverSessions = details
+    .filter((result) => result.status === 'fulfilled' && result.value?.documentId)
+    .map((result) => buildSessionFromDocumentDetail(result.value));
+  if (!serverSessions.length) {
+    return;
+  }
+  const localDrafts = sessions.value.filter(isBlankDraftSession);
+  const localCustomSessions = sessions.value.filter((session) => {
+    return !isBlankDraftSession(session) && !String(session.id).startsWith('server-');
+  });
+  sessions.value = sanitizeSessions([
+    ...localDrafts,
+    ...serverSessions,
+    ...localCustomSessions
+  ]);
+  activeSessionId.value = serverSessions[0]?.id || activeSessionId.value;
+  activeNav.value = 'chat';
+  persistSessions();
+  await nextTick(scrollWorkspaceToTop);
+}
+
+function buildSessionFromDocumentDetail(detail) {
+  const time = detail.createTime ? new Date(detail.createTime).getTime() : Date.now();
+  return normalizeSession({
+    id: `server-${detail.documentId}`,
+    title: detail.title || '导入工作台',
+    updatedAt: detail.createTime ? formatSessionTime(new Date(detail.createTime)) : formatSessionTime(),
+    updatedAtValue: Number.isFinite(time) ? time : Date.now(),
+    createdAtValue: Number.isFinite(time) ? time : Date.now(),
+    isDraft: false,
+    pinned: false,
+    pinnedTime: null,
+    folderName: detail.tag || DEFAULT_FOLDER,
+    messages: [
+      createMessage('user', detail.content || detail.title || '导入文档'),
+      createMessage('assistant', detail.resultText || '暂无生成结果')
+    ]
+  });
 }
 
 function setFeatureCardRef(el, index) {

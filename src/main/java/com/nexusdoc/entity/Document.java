@@ -16,6 +16,8 @@ public class Document {
 
     private Long userId;
 
+    private String deviceId;
+
     private String title;
 
     private String docType;

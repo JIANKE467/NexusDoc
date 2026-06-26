@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.nexusdoc.ai.PromptTemplateFactory;
 import com.nexusdoc.common.exception.BusinessException;
 import com.nexusdoc.common.exception.DatabaseExceptionHelper;
+import com.nexusdoc.dto.DeviceDataImportRequest;
 import com.nexusdoc.dto.DocumentGenerateRequest;
 import com.nexusdoc.entity.ChatRecord;
 import com.nexusdoc.entity.Document;
@@ -18,6 +19,8 @@ import com.nexusdoc.service.WebSearchService;
 import com.nexusdoc.service.support.InMemoryDocumentStore;
 import com.nexusdoc.vo.DocumentDetailVO;
 import com.nexusdoc.vo.DocumentListVO;
+import com.nexusdoc.vo.DeviceDataExportVO;
+import com.nexusdoc.vo.DeviceDataImportVO;
 import com.nexusdoc.vo.WebSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +38,7 @@ import java.util.function.Consumer;
 public class DocumentServiceImpl implements DocumentService {
 
     private static final int MAX_CONTENT_LENGTH = 20000;
+    private static final int MAX_IMPORT_DOCUMENTS = 500;
     private static final Long ANONYMOUS_USER_ID = 0L;
 
     private final DocumentMapper documentMapper;
@@ -48,9 +52,11 @@ public class DocumentServiceImpl implements DocumentService {
     public DocumentDetailVO generateDocument(DocumentGenerateRequest request) {
         validateGenerateRequest(request);
         Long userId = resolveUserId(request.getUserId());
+        String deviceId = resolveDeviceId(request.getDeviceId());
 
         Document document = new Document();
         document.setUserId(userId);
+        document.setDeviceId(deviceId);
         document.setTitle(request.getTitle().trim());
         document.setDocType(normalizeDocType(request.getDocType()));
         document.setTag(StringUtils.hasText(request.getTag()) ? request.getTag().trim() : null);
@@ -103,7 +109,7 @@ public class DocumentServiceImpl implements DocumentService {
             }
         }
 
-        log.info("文档生成成功，userId={}, documentId={}", userId, document.getId());
+        log.info("文档生成成功，deviceId={}, documentId={}", maskDeviceId(deviceId), document.getId());
         return buildDetailVO(document, documentPackage);
     }
 
@@ -114,9 +120,11 @@ public class DocumentServiceImpl implements DocumentService {
                                                    Consumer<String> onWarning) {
         validateGenerateRequest(request);
         Long userId = resolveUserId(request.getUserId());
+        String deviceId = resolveDeviceId(request.getDeviceId());
 
         Document document = new Document();
         document.setUserId(userId);
+        document.setDeviceId(deviceId);
         document.setTitle(request.getTitle().trim());
         document.setDocType(normalizeDocType(request.getDocType()));
         document.setTag(StringUtils.hasText(request.getTag()) ? request.getTag().trim() : null);
@@ -180,23 +188,24 @@ public class DocumentServiceImpl implements DocumentService {
             }
         }
 
-        log.info("流式文档生成成功，userId={}, documentId={}", userId, document.getId());
+        log.info("流式文档生成成功，deviceId={}, documentId={}", maskDeviceId(deviceId), document.getId());
         return buildDetailVO(document, documentPackage);
     }
 
     @Override
-    public List<DocumentListVO> listDocuments(Long userId) {
-        Long resolvedUserId = resolveUserId(userId);
+    public List<DocumentListVO> listDocuments(String deviceId) {
+        String resolvedDeviceId = resolveDeviceId(deviceId);
 
         try {
             return documentMapper.selectList(new LambdaQueryWrapper<Document>()
-                            .eq(Document::getUserId, resolvedUserId)
+                            .eq(Document::getDeviceId, resolvedDeviceId)
                             .orderByDesc(Document::getCreateTime))
                     .stream()
                     .map(document -> {
                         DocumentPackage documentPackage = findPackageByDocumentId(document.getId());
                         return DocumentListVO.builder()
                                 .documentId(document.getId())
+                                .deviceId(document.getDeviceId())
                                 .title(document.getTitle())
                                 .docType(document.getDocType())
                                 .tag(document.getTag())
@@ -208,11 +217,12 @@ public class DocumentServiceImpl implements DocumentService {
         } catch (RuntimeException exception) {
             if (DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
                 log.warn("数据库未连接，历史记录使用内存临时存储：{}", exception.getMessage());
-                return inMemoryDocumentStore.listDocuments(resolvedUserId).stream()
+                return inMemoryDocumentStore.listDocuments(resolvedDeviceId).stream()
                         .map(document -> {
                             DocumentPackage documentPackage = inMemoryDocumentStore.findPackage(document.getId());
                             return DocumentListVO.builder()
                                     .documentId(document.getId())
+                                    .deviceId(document.getDeviceId())
                                     .title(document.getTitle())
                                     .docType(document.getDocType())
                                     .tag(document.getTag())
@@ -227,16 +237,16 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public DocumentDetailVO getDocumentDetail(Long documentId) {
-        Document document = getDocumentOrThrow(documentId);
+    public DocumentDetailVO getDocumentDetail(Long documentId, String deviceId) {
+        Document document = getDocumentOrThrow(documentId, deviceId);
         return buildDetailVO(document, findPackageByDocumentId(documentId));
     }
 
     @Override
-    public void deleteDocument(Long documentId) {
-        Document document = getDocumentOrThrow(documentId);
+    public void deleteDocument(Long documentId, String deviceId) {
+        Document document = getDocumentOrThrow(documentId, deviceId);
         if (inMemoryDocumentStore.findDocument(document.getId()) != null) {
-            inMemoryDocumentStore.deleteDocument(documentId);
+            inMemoryDocumentStore.deleteDocument(documentId, resolveDeviceId(deviceId));
             log.info("内存文档删除成功，documentId={}", documentId);
             return;
         }
@@ -244,12 +254,130 @@ public class DocumentServiceImpl implements DocumentService {
             documentPackageMapper.delete(new LambdaQueryWrapper<DocumentPackage>()
                     .eq(DocumentPackage::getDocumentId, documentId));
             chatRecordMapper.delete(new LambdaQueryWrapper<ChatRecord>()
-                    .eq(ChatRecord::getDocumentId, documentId));
-            documentMapper.deleteById(documentId);
+                    .eq(ChatRecord::getDocumentId, documentId)
+                    .eq(ChatRecord::getDeviceId, document.getDeviceId()));
+            documentMapper.delete(new LambdaQueryWrapper<Document>()
+                    .eq(Document::getId, documentId)
+                    .eq(Document::getDeviceId, document.getDeviceId()));
         } catch (RuntimeException exception) {
             throw databaseBusinessException(exception);
         }
         log.info("文档删除成功，documentId={}", documentId);
+    }
+
+    @Override
+    public DeviceDataExportVO exportDeviceData(String deviceId) {
+        String resolvedDeviceId = resolveDeviceId(deviceId);
+        List<Document> documents;
+        try {
+            documents = documentMapper.selectList(new LambdaQueryWrapper<Document>()
+                    .eq(Document::getDeviceId, resolvedDeviceId)
+                    .orderByAsc(Document::getCreateTime));
+        } catch (RuntimeException exception) {
+            if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                throw exception;
+            }
+            documents = inMemoryDocumentStore.listDocuments(resolvedDeviceId).stream()
+                    .sorted((first, second) -> first.getCreateTime().compareTo(second.getCreateTime()))
+                    .toList();
+        }
+
+        List<DeviceDataExportVO.DocumentBackupVO> backups = documents.stream()
+                .map(document -> DeviceDataExportVO.DocumentBackupVO.builder()
+                        .title(document.getTitle())
+                        .docType(document.getDocType())
+                        .tag(document.getTag())
+                        .content(document.getContent())
+                        .resultText(findPackageByDocumentId(document.getId()) == null
+                                ? ""
+                                : findPackageByDocumentId(document.getId()).getResultText())
+                        .createTime(document.getCreateTime())
+                        .chatRecords(listChatBackups(document.getId(), resolvedDeviceId))
+                        .build())
+                .toList();
+
+        return DeviceDataExportVO.builder()
+                .version("nexusdoc-device-backup-v1")
+                .exportedAt(LocalDateTime.now())
+                .documentCount(backups.size())
+                .documents(backups)
+                .build();
+    }
+
+    @Override
+    public DeviceDataImportVO importDeviceData(String deviceId, DeviceDataImportRequest request) {
+        String resolvedDeviceId = resolveDeviceId(deviceId);
+        if (request == null || request.getDocuments() == null || request.getDocuments().isEmpty()) {
+            throw new BusinessException("导入文件中没有可用文档数据");
+        }
+        if (request.getDocuments().size() > MAX_IMPORT_DOCUMENTS) {
+            throw new BusinessException("一次最多导入 500 个文档，请拆分后重试");
+        }
+
+        int importedDocuments = 0;
+        int importedChatRecords = 0;
+        for (DeviceDataImportRequest.DocumentBackup backup : request.getDocuments()) {
+            if (backup == null || !StringUtils.hasText(backup.getTitle()) || !StringUtils.hasText(backup.getContent())) {
+                continue;
+            }
+
+            Document document = new Document();
+            document.setUserId(ANONYMOUS_USER_ID);
+            document.setDeviceId(resolvedDeviceId);
+            document.setTitle(limitText(backup.getTitle().trim(), 100));
+            document.setDocType(normalizeDocType(StringUtils.hasText(backup.getDocType())
+                    ? backup.getDocType()
+                    : DocumentTypeEnum.FREE_CHAT.getDisplayName()));
+            document.setTag(StringUtils.hasText(backup.getTag()) ? limitText(backup.getTag().trim(), 50) : null);
+            document.setContent(limitText(backup.getContent().trim(), MAX_CONTENT_LENGTH));
+            document.setCreateTime(backup.getCreateTime() == null ? LocalDateTime.now() : backup.getCreateTime());
+
+            boolean inMemoryMode = false;
+            try {
+                documentMapper.insert(document);
+            } catch (RuntimeException exception) {
+                if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                    throw exception;
+                }
+                inMemoryMode = true;
+                inMemoryDocumentStore.saveDocument(document);
+            }
+
+            DocumentPackage documentPackage = new DocumentPackage();
+            documentPackage.setDocumentId(document.getId());
+            documentPackage.setResultText(backup.getResultText() == null ? "" : backup.getResultText());
+            documentPackage.setCreateTime(document.getCreateTime());
+            if (inMemoryMode) {
+                inMemoryDocumentStore.savePackage(documentPackage);
+            } else {
+                documentPackageMapper.insert(documentPackage);
+            }
+
+            for (DeviceDataImportRequest.ChatBackup chatBackup : safeChatBackups(backup)) {
+                if (!StringUtils.hasText(chatBackup.getQuestion()) || !StringUtils.hasText(chatBackup.getAnswer())) {
+                    continue;
+                }
+                ChatRecord record = new ChatRecord();
+                record.setUserId(ANONYMOUS_USER_ID);
+                record.setDeviceId(resolvedDeviceId);
+                record.setDocumentId(document.getId());
+                record.setUserQuestion(chatBackup.getQuestion().trim());
+                record.setAiAnswer(chatBackup.getAnswer());
+                record.setCreateTime(chatBackup.getCreateTime() == null ? document.getCreateTime() : chatBackup.getCreateTime());
+                if (inMemoryMode) {
+                    inMemoryDocumentStore.saveChatRecord(record);
+                } else {
+                    chatRecordMapper.insert(record);
+                }
+                importedChatRecords++;
+            }
+            importedDocuments++;
+        }
+
+        return DeviceDataImportVO.builder()
+                .importedDocuments(importedDocuments)
+                .importedChatRecords(importedChatRecords)
+                .build();
     }
 
     private void validateGenerateRequest(DocumentGenerateRequest request) {
@@ -277,19 +405,30 @@ public class DocumentServiceImpl implements DocumentService {
         return userId == null ? ANONYMOUS_USER_ID : userId;
     }
 
-    private Document getDocumentOrThrow(Long documentId) {
+    private String resolveDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            throw new BusinessException("设备标识缺失，请刷新页面后重试");
+        }
+        return deviceId.trim();
+    }
+
+    private Document getDocumentOrThrow(Long documentId, String deviceId) {
         if (documentId == null) {
             throw new BusinessException("documentId 不能为空");
         }
+        String resolvedDeviceId = resolveDeviceId(deviceId);
         Document document;
         try {
-            document = documentMapper.selectById(documentId);
+            document = documentMapper.selectOne(new LambdaQueryWrapper<Document>()
+                    .eq(Document::getId, documentId)
+                    .eq(Document::getDeviceId, resolvedDeviceId)
+                    .last("LIMIT 1"));
         } catch (RuntimeException exception) {
             if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
                 throw exception;
             }
             log.warn("数据库未连接，文档详情使用内存临时存储：{}", exception.getMessage());
-            document = inMemoryDocumentStore.findDocument(documentId);
+            document = inMemoryDocumentStore.findDocument(documentId, resolvedDeviceId);
         }
         if (document == null) {
             throw new BusinessException("文档不存在");
@@ -310,10 +449,42 @@ public class DocumentServiceImpl implements DocumentService {
         }
     }
 
+    private List<DeviceDataExportVO.ChatBackupVO> listChatBackups(Long documentId, String deviceId) {
+        try {
+            return chatRecordMapper.selectList(new LambdaQueryWrapper<ChatRecord>()
+                            .eq(ChatRecord::getDocumentId, documentId)
+                            .eq(ChatRecord::getDeviceId, deviceId)
+                            .orderByAsc(ChatRecord::getCreateTime))
+                    .stream()
+                    .map(record -> DeviceDataExportVO.ChatBackupVO.builder()
+                            .question(record.getUserQuestion())
+                            .answer(record.getAiAnswer())
+                            .createTime(record.getCreateTime())
+                            .build())
+                    .toList();
+        } catch (RuntimeException exception) {
+            if (!DatabaseExceptionHelper.isDatabaseUnavailable(exception)) {
+                throw exception;
+            }
+            return inMemoryDocumentStore.listChatRecords(documentId, deviceId).stream()
+                    .map(record -> DeviceDataExportVO.ChatBackupVO.builder()
+                            .question(record.getUserQuestion())
+                            .answer(record.getAiAnswer())
+                            .createTime(record.getCreateTime())
+                            .build())
+                    .toList();
+        }
+    }
+
+    private List<DeviceDataImportRequest.ChatBackup> safeChatBackups(DeviceDataImportRequest.DocumentBackup backup) {
+        return backup.getChatRecords() == null ? List.of() : backup.getChatRecords();
+    }
+
     private DocumentDetailVO buildDetailVO(Document document, DocumentPackage documentPackage) {
         return DocumentDetailVO.builder()
                 .documentId(document.getId())
                 .userId(document.getUserId())
+                .deviceId(document.getDeviceId())
                 .title(document.getTitle())
                 .docType(document.getDocType())
                 .tag(document.getTag())
@@ -329,6 +500,13 @@ public class DocumentServiceImpl implements DocumentService {
         }
         String resultText = documentPackage.getResultText().replaceAll("\\s+", " ").trim();
         return resultText.length() > 120 ? resultText.substring(0, 120) + "..." : resultText;
+    }
+
+    private String limitText(String text, int maxLength) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() > maxLength ? text.substring(0, maxLength) : text;
     }
 
     private BusinessException databaseBusinessException(RuntimeException exception) {
@@ -352,5 +530,16 @@ public class DocumentServiceImpl implements DocumentService {
         } catch (RuntimeException exception) {
             log.warn("文档生成失败后清理数据库记录失败，documentId={}", documentId, exception);
         }
+    }
+
+    private String maskDeviceId(String deviceId) {
+        if (!StringUtils.hasText(deviceId)) {
+            return "unknown";
+        }
+        String value = deviceId.trim();
+        if (value.length() <= 12) {
+            return value;
+        }
+        return value.substring(0, 12) + "***";
     }
 }

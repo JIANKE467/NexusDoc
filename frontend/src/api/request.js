@@ -1,9 +1,16 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
+import { getOrCreateDeviceId } from '../utils/deviceId';
 
 const request = axios.create({
   baseURL: '/api',
   timeout: 60000
+});
+
+request.interceptors.request.use((config) => {
+  config.headers = config.headers || {};
+  config.headers['X-Device-Id'] = getOrCreateDeviceId();
+  return config;
 });
 
 request.interceptors.response.use(

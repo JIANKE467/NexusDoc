@@ -11,6 +11,8 @@ public class DocumentListVO {
 
     private Long documentId;
 
+    private String deviceId;
+
     private String title;
 
     private String docType;

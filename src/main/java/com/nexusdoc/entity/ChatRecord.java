@@ -16,6 +16,8 @@ public class ChatRecord {
 
     private Long userId;
 
+    private String deviceId;
+
     private Long documentId;
 
     private String userQuestion;

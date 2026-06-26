@@ -7,6 +7,8 @@ public class ChatAskRequest {
 
     private Long userId;
 
+    private String deviceId;
+
     private Long documentId;
 
     private String question;

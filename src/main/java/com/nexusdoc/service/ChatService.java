@@ -10,5 +10,5 @@ public interface ChatService {
 
     ChatAnswerVO ask(ChatAskRequest request);
 
-    List<ChatRecordVO> listRecords(Long documentId);
+    List<ChatRecordVO> listRecords(Long documentId, String deviceId);
 }
