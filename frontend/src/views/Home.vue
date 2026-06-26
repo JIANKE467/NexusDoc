@@ -28,7 +28,7 @@
         ref="fileInput"
         class="hidden-file-input"
         type="file"
-        accept=".txt,.md,.markdown,.csv,.json,.log"
+        accept=".txt,.md,.markdown,.csv,.json,.docx,.pdf"
         @change="handleDocumentUpload"
       />
 
@@ -362,6 +362,17 @@
             @input="resizeComposer"
             @keydown="handleComposerKeydown"
           ></textarea>
+          <div v-if="selectedUploadFile" class="file-mcp-pill">
+            <div class="file-mcp-icon">{{ selectedUploadMeta.fileType }}</div>
+            <div class="file-mcp-meta">
+              <strong>{{ selectedUploadMeta.fileName }}</strong>
+              <span>
+                FileInsight MCP · {{ selectedUploadMeta.fileType.toUpperCase() }} · {{ selectedUploadMeta.fileSizeText }} · {{ selectedUploadStatus }}
+              </span>
+              <small>{{ selectedUploadHint }}</small>
+            </div>
+            <button type="button" aria-label="移除上传文件" @click="removeSelectedUploadFile">×</button>
+          </div>
           <div class="composer-source-row" aria-label="输入来源快捷操作">
             <button type="button" @click="triggerDocumentUpload">
               <span>↑</span>
@@ -411,7 +422,7 @@
                 </template>
               </el-dropdown>
             </div>
-            <button class="send-button" type="button" :disabled="sending || !inputText.trim()" @click="sendMessage">
+            <button class="send-button" type="button" :disabled="sending || (!inputText.trim() && !selectedUploadFile)" @click="sendMessage">
               <span v-if="sending">生成中</span>
               <span v-else>生成卡片 ✨</span>
             </button>
@@ -499,6 +510,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getAiConfig } from '../api/ai';
 import { generateDocument } from '../api/document';
+import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
 import { ANONYMOUS_USER_ID } from '../config/user';
 
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
@@ -594,6 +606,9 @@ const visibleCards = ref([]);
 const fileInput = ref(null);
 const selectedCard = ref(null);
 const cardDetailVisible = ref(false);
+const selectedUploadFile = ref(null);
+const selectedUploadStatus = ref('已选择');
+const fileMcpCapabilities = ref(null);
 const route = useRoute();
 const router = useRouter();
 
@@ -675,6 +690,39 @@ const filteredCommands = computed(() => {
   }
   return commands.value.filter((command) => `${command.title} ${command.description}`.toLowerCase().includes(keyword));
 });
+const selectedUploadMeta = computed(() => {
+  if (!selectedUploadFile.value) {
+    return {
+      fileName: '',
+      fileType: 'FILE',
+      fileSizeText: ''
+    };
+  }
+  const fileName = selectedUploadFile.value.name || '未命名文件';
+  return {
+    fileName,
+    fileType: resolveClientFileType(fileName),
+    fileSizeText: formatFileSize(selectedUploadFile.value.size)
+  };
+});
+const fileMcpSupportedTypes = computed(() => {
+  return fileMcpCapabilities.value?.supportedTypes?.length
+    ? fileMcpCapabilities.value.supportedTypes.map((type) => String(type).toLowerCase())
+    : ['txt', 'md', 'markdown', 'csv', 'json', 'docx', 'pdf'];
+});
+const fileMcpMaxFileSizeMb = computed(() => Number(fileMcpCapabilities.value?.maxFileSizeMb || 10));
+const selectedUploadHint = computed(() => {
+  if (!selectedUploadFile.value) {
+    return '';
+  }
+  const caps = fileMcpCapabilities.value;
+  const maxChars = caps?.maxExtractChars || 20000;
+  const maxPdfPages = caps?.maxPdfPages || 80;
+  if (selectedUploadMeta.value.fileType === 'pdf') {
+    return `最多解析前 ${maxPdfPages} 页、前 ${maxChars} 字；扫描版 PDF 需先 OCR`;
+  }
+  return `最多提取前 ${maxChars} 字进入 AI 生成`;
+});
 
 onMounted(async () => {
   restoreSessions();
@@ -682,6 +730,7 @@ onMounted(async () => {
   window.addEventListener('nexusdoc:open-command-center', openCommandCenter);
   window.addEventListener('keydown', handleGlobalKeydown);
   await loadAiConfig();
+  await loadFileMcpCapabilities();
   await nextTick();
   initMotionEffects();
   if (activeMessages.value.length > 0) {
@@ -706,6 +755,14 @@ watch(
 
 async function loadAiConfig() {
   aiConfig.value = await getAiConfig();
+}
+
+async function loadFileMcpCapabilities() {
+  try {
+    fileMcpCapabilities.value = await getFileMcpCapabilities();
+  } catch {
+    fileMcpCapabilities.value = null;
+  }
 }
 
 function restoreSessions() {
@@ -798,18 +855,29 @@ async function handleDocumentUpload(event) {
   if (!file) {
     return;
   }
-  try {
-    const text = await file.text();
-    inputText.value = `请把下面上传文档整理成知识卡片，包含摘要、观点、任务、结构和可追问问题：\n\n${text}`;
-    selectedDocType.value = '通用总结';
-    activeNav.value = 'home';
-    replaceWorkspaceView('home');
-    await nextTick();
-    focusComposerInput();
-    ElMessage.success(`已读取「${file.name}」`);
-  } catch {
-    ElMessage.error('文档读取失败，请上传 txt、md、csv、json 等文本文件');
+  const fileType = resolveClientFileType(file.name);
+  const supportedTypes = fileMcpSupportedTypes.value;
+  if (!supportedTypes.includes(fileType)) {
+    ElMessage.error(`当前文件类型暂不支持，请上传 ${supportedTypes.join('、')} 文件`);
+    return;
   }
+  if (file.size > fileMcpMaxFileSizeMb.value * 1024 * 1024) {
+    ElMessage.error(`文件过大，当前最大支持 ${fileMcpMaxFileSizeMb.value}MB，请压缩或拆分后再上传`);
+    return;
+  }
+  selectedUploadFile.value = file;
+  selectedUploadStatus.value = '已选择';
+  selectedDocType.value = '通用总结';
+  activeNav.value = 'home';
+  replaceWorkspaceView('home');
+  await nextTick();
+  focusComposerInput();
+  ElMessage.success(`已选择「${file.name}」，生成时将通过 FileInsight MCP 解析`);
+}
+
+function removeSelectedUploadFile() {
+  selectedUploadFile.value = null;
+  selectedUploadStatus.value = '已选择';
 }
 
 async function pasteClipboardText() {
@@ -1015,8 +1083,9 @@ function requestScrollProgress() {
 }
 
 async function sendMessage() {
-  const content = inputText.value.trim();
-  if (!content || sending.value) {
+  const requirement = inputText.value.trim();
+  const file = selectedUploadFile.value;
+  if ((!requirement && !file) || sending.value) {
     return;
   }
   if (aiConfig.value && !aiConfig.value.apiKeyConfigured) {
@@ -1032,36 +1101,58 @@ async function sendMessage() {
   }
   activeNav.value = 'chat';
   replaceWorkspaceView('chat');
-  const userMessage = createMessage('user', content);
+  const userContent = file
+    ? `通过 FileInsight MCP 解析文件：${file.name}${requirement ? `\n处理要求：${requirement}` : '\n处理要求：生成摘要、观点、任务、结构和可追问问题。'}`
+    : requirement;
+  const userMessage = createMessage('user', userContent);
   const assistantMessage = createMessage('assistant', '', true);
   if (session.isDraft) {
     session.isDraft = false;
   }
   session.messages.push(userMessage, assistantMessage);
-  session.title = buildSessionTitle(content);
+  session.title = buildSessionTitle(file ? file.name : requirement);
   session.updatedAt = formatSessionTime();
   session.updatedAtValue = Date.now();
   inputText.value = '';
   sending.value = true;
+  if (file) {
+    selectedUploadStatus.value = '解析生成中';
+  }
   persistSessions();
   await nextTick();
   resetComposerHeight();
   scrollToBottom();
 
   try {
-    // 真实 AI 调用入口：当前复用后端已有文档生成接口，后续如需改成流式聊天接口，可在这里替换为新的 API 调用。
-    const result = await generateDocument({
-      userId: ANONYMOUS_USER_ID,
-      title: session.title,
-      docType: selectedDocType.value,
-      tag: 'AI 对话',
-      content,
-      enableWebSearch: true
-    });
-    await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
+    const result = file
+      ? await generateFromFile({
+          file,
+          userId: ANONYMOUS_USER_ID,
+          mode: selectedDocType.value,
+          enableWebSearch: true,
+          cardTypes: quickCardPills.map((pill) => pill.label).join('、'),
+          requirement
+        })
+      : await generateDocument({
+          userId: ANONYMOUS_USER_ID,
+          title: session.title,
+          docType: selectedDocType.value,
+          tag: 'AI 对话',
+          content: requirement,
+          enableWebSearch: true
+        });
+    const resultText = file ? buildFileMcpResultText(result) : result.resultText;
+    await revealAssistantMessage(assistantMessage, resultText || 'AI 暂未返回内容。');
+    if (file) {
+      selectedUploadStatus.value = '已生成';
+      selectedUploadFile.value = null;
+    }
   } catch (error) {
     assistantMessage.loading = false;
     assistantMessage.content = error.message || 'AI 服务暂时不可用，请稍后重试。';
+    if (file) {
+      selectedUploadStatus.value = '生成失败';
+    }
   } finally {
     sending.value = false;
     persistSessions();
@@ -1133,6 +1224,47 @@ function buildSessionTitle(content) {
     return '新文档对话';
   }
   return text.length > 18 ? `${text.slice(0, 18)}...` : text;
+}
+
+function buildFileMcpResultText(result) {
+  const lines = [
+    `【FileInsight MCP】`,
+    `来自文件：${result.fileName || '上传文件'}`,
+    `文件类型：${String(result.fileType || 'file').toUpperCase()}`,
+    `解析状态：已提取 ${result.originalTextLength || 0} 字，已用于生成 ${result.usedTextLength || 0} 字`
+  ];
+  if (result.pageCount) {
+    lines.push(`PDF 页数：${result.pageCount} 页，已解析 ${result.parsedPageCount || result.pageCount} 页`);
+  }
+  if (result.truncated) {
+    lines.push(`说明：文件内容较长，系统已截取前 ${result.usedTextLength || 0} 字用于本次生成。`);
+  }
+  if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+    lines.push('解析提示：');
+    result.warnings.forEach((warning) => {
+      lines.push(`- ${warning}`);
+    });
+  }
+  lines.push('', result.resultText || result.document?.resultText || '');
+  return lines.join('\n');
+}
+
+function resolveClientFileType(fileName) {
+  const extension = String(fileName || '').split('.').pop()?.toLowerCase();
+  return extension || 'file';
+}
+
+function formatFileSize(size) {
+  if (!Number.isFinite(size)) {
+    return '未知大小';
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function compactOrbitTitle(title) {
@@ -6092,6 +6224,79 @@ async function confirmDeleteSession(session) {
 .composer textarea {
   min-height: 58px;
   padding: 20px 22px 10px;
+}
+
+.file-mcp-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 18px 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(246, 200, 111, 0.22);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(246, 200, 111, 0.09), rgba(255, 255, 255, 0.025)),
+    rgba(10, 11, 15, 0.58);
+}
+
+.file-mcp-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(246, 200, 111, 0.22);
+  border-radius: 13px;
+  color: #1a1208;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
+}
+
+.file-mcp-meta {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.file-mcp-meta strong {
+  overflow: hidden;
+  color: rgba(255, 247, 231, 0.94);
+  font-size: 14px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-mcp-meta span {
+  color: rgba(248, 241, 228, 0.54);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.file-mcp-meta small {
+  color: rgba(248, 241, 228, 0.42);
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 1.5;
+}
+
+.file-mcp-pill > button {
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 10px;
+  color: rgba(248, 241, 228, 0.74);
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.file-mcp-pill > button:hover {
+  color: #1a1208;
+  background: linear-gradient(135deg, #ffe1a3, #d89531);
 }
 
 .composer-source-row {

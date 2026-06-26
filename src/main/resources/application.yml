@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: nexusdoc
+  servlet:
+    multipart:
+      max-file-size: ${NEXUSDOC_FILE_MCP_MAX_FILE_SIZE:10MB}
+      max-request-size: ${NEXUSDOC_FILE_MCP_MAX_REQUEST_SIZE:12MB}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/nexusdoc?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
@@ -44,3 +48,18 @@ web-search:
   num: 5
   timeout-seconds: 10
   cache-ttl-seconds: 600
+
+nexusdoc:
+  file-mcp:
+    enabled: ${NEXUSDOC_FILE_MCP_ENABLED:true}
+    max-file-size-mb: ${NEXUSDOC_FILE_MCP_MAX_FILE_SIZE_MB:10}
+    max-extract-chars: ${NEXUSDOC_FILE_MCP_MAX_EXTRACT_CHARS:20000}
+    max-pdf-pages: ${NEXUSDOC_FILE_MCP_MAX_PDF_PAGES:80}
+    supported-types:
+      - txt
+      - md
+      - markdown
+      - csv
+      - json
+      - docx
+      - pdf
