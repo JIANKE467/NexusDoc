@@ -8574,4 +8574,275 @@ async function confirmDeleteSession(session) {
     transform: translateX(8px) translateY(-18px) scale(0.88) !important;
   }
 }
+
+/* Hero knowledge system: ordered Core-to-cards visual, desktop only */
+@media (min-width: 769px) {
+  .ocean-stage {
+    width: min(100%, 560px) !important;
+    min-height: 470px !important;
+    overflow: visible !important;
+    isolation: isolate;
+    filter: saturate(0.96) !important;
+  }
+
+  .ocean-stage::before {
+    inset: 8% 4% 6% !important;
+    border-radius: 44% !important;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(246, 200, 111, 0.16), transparent 20%),
+      radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05), transparent 42%) !important;
+    opacity: 0.78 !important;
+    filter: blur(1px) !important;
+  }
+
+  .orbit-ring {
+    border-color: rgba(246, 200, 111, 0.13) !important;
+    animation: none !important;
+  }
+
+  .orbit-ring-one {
+    width: 322px !important;
+    height: 210px !important;
+    border-style: solid !important;
+    transform: translate(-50%, -50%) rotate(-14deg) !important;
+  }
+
+  .orbit-ring-two {
+    width: 468px !important;
+    height: 316px !important;
+    border-style: dashed !important;
+    opacity: 0.68 !important;
+    transform: translate(-50%, -50%) rotate(18deg) !important;
+  }
+
+  .orbit-ring-three {
+    width: 520px !important;
+    height: 352px !important;
+    border-style: dashed !important;
+    opacity: 0.28 !important;
+    transform: translate(-50%, -50%) rotate(-5deg) !important;
+  }
+
+  .orbit-node {
+    width: 5px !important;
+    height: 5px !important;
+    opacity: 0.62 !important;
+    animation: none !important;
+  }
+
+  .node-one { left: 34% !important; top: 34% !important; }
+  .node-two { right: 28% !important; top: 32% !important; }
+  .node-three { right: 26% !important; bottom: 30% !important; }
+  .node-four { left: 34% !important; bottom: 31% !important; }
+
+  .knowledge-core {
+    left: 50% !important;
+    top: 51% !important;
+    z-index: 6 !important;
+    width: 118px !important;
+    height: 118px !important;
+    border: 1px solid rgba(255, 214, 143, 0.32) !important;
+    border-radius: 32px !important;
+    color: #201306 !important;
+    background:
+      radial-gradient(circle at 35% 28%, rgba(255, 244, 206, 0.82), transparent 30%),
+      linear-gradient(145deg, rgba(255, 219, 144, 0.94), rgba(184, 113, 28, 0.78)) !important;
+    box-shadow:
+      0 0 42px rgba(218, 153, 54, 0.22),
+      0 22px 70px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+    transform: translate(-50%, -50%) !important;
+    animation: none !important;
+  }
+
+  .knowledge-core span {
+    align-self: end;
+    color: #1d1105 !important;
+    font-size: 15px !important;
+    font-weight: 950 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase;
+  }
+
+  .knowledge-core i {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    margin-top: 4px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: rgba(32, 19, 6, 0.74) !important;
+    font-style: normal !important;
+    font-size: 11px !important;
+    font-weight: 850 !important;
+    line-height: 1.1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+
+  .knowledge-core i::before {
+    content: "文档 → 卡片";
+  }
+
+  .orbit-relation-note {
+    top: 67% !important;
+    z-index: 5 !important;
+    max-width: 230px !important;
+    color: rgba(248, 241, 228, 0.58) !important;
+    background: rgba(10, 11, 15, 0.54) !important;
+  }
+
+  .orbit-card {
+    z-index: 8 !important;
+    width: 196px !important;
+    min-height: 118px !important;
+    gap: 6px !important;
+    padding: 15px 16px !important;
+    border-radius: 20px !important;
+    border-color: rgba(246, 200, 111, 0.18) !important;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.018)),
+      rgba(13, 15, 21, 0.86) !important;
+    box-shadow:
+      0 22px 58px rgba(0, 0, 0, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    backdrop-filter: blur(18px) saturate(1.08) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.08) !important;
+    animation: cardFloatSoft 7.6s ease-in-out infinite !important;
+  }
+
+  .orbit-card::before {
+    width: 30px !important;
+    height: 30px !important;
+    margin-bottom: 3px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 10px 22px rgba(246, 200, 111, 0.14);
+  }
+
+  .orbit-card small {
+    color: rgba(246, 200, 111, 0.84) !important;
+    font-size: 12px !important;
+    letter-spacing: 0.02em !important;
+  }
+
+  .orbit-card strong {
+    color: rgba(255, 247, 231, 0.94) !important;
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+  }
+
+  .orbit-card span {
+    color: rgba(248, 241, 228, 0.62) !important;
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+  }
+
+  .orbit-summary {
+    top: 10px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    animation-delay: -0.4s !important;
+  }
+
+  .orbit-insight {
+    top: 102px !important;
+    right: 0 !important;
+    left: auto !important;
+    animation-delay: -1.3s !important;
+  }
+
+  .orbit-quote {
+    right: 20px !important;
+    top: auto !important;
+    bottom: 38px !important;
+    animation-delay: -2.1s !important;
+  }
+
+  .orbit-structure {
+    left: 8px !important;
+    top: auto !important;
+    bottom: 88px !important;
+    animation-delay: -3s !important;
+  }
+
+  .orbit-source {
+    left: 50% !important;
+    bottom: 2px !important;
+    transform: translateX(-50%) !important;
+    width: 178px !important;
+    min-height: 104px !important;
+    opacity: 0.92 !important;
+    animation-delay: -3.7s !important;
+  }
+
+  .orbit-action {
+    display: none !important;
+  }
+
+  .orbit-doc-card {
+    z-index: 7 !important;
+    width: 158px !important;
+    min-height: 92px !important;
+    padding: 12px 13px !important;
+    border-style: dashed !important;
+    border-color: rgba(246, 200, 111, 0.16) !important;
+    border-radius: 18px !important;
+    background:
+      linear-gradient(145deg, rgba(246, 200, 111, 0.06), rgba(255, 255, 255, 0.018)),
+      rgba(12, 13, 18, 0.58) !important;
+    animation: cardFloatSoft 8.4s ease-in-out infinite !important;
+  }
+
+  .orbit-doc-card.is-doc-1 {
+    top: 110px !important;
+    left: 8px !important;
+    animation-delay: -2.6s !important;
+  }
+
+  .orbit-doc-card.is-doc-1::after {
+    top: 52% !important;
+    left: 100% !important;
+    width: 82px !important;
+    border-top-color: rgba(246, 200, 111, 0.17) !important;
+    transform: rotate(17deg) !important;
+  }
+
+  .orbit-doc-card.is-doc-2,
+  .orbit-doc-card.is-doc-3 {
+    display: none !important;
+  }
+}
+
+@keyframes cardFloatSoft {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 -6px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+  .ocean-stage {
+    transform: translateX(0) translateY(-18px) scale(0.8) !important;
+    transform-origin: top right !important;
+  }
+
+  .orbit-source,
+  .orbit-doc-card.is-doc-1 {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit-card,
+  .orbit-doc-card {
+    animation: none !important;
+  }
+}
 </style>
