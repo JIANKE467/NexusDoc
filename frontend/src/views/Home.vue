@@ -321,7 +321,7 @@
                   <small>{{ card.meta }}</small>
                 </div>
                 <h3>{{ card.title }}</h3>
-                <div class="card-content-preview markdown-preview" v-html="renderMarkdown(card.body)"></div>
+                <div class="card-content-preview markdown-preview" v-html="card.previewHtml"></div>
                 <ul v-if="card.points.length" class="card-content-preview">
                   <li v-for="point in card.points" :key="point">{{ point }}</li>
                 </ul>
@@ -332,7 +332,7 @@
                   </button>
                 </div>
                 <div class="card-actions">
-                  <button type="button" @click.stop="copyText(card.raw)">复制</button>
+                  <button type="button" @click.stop="copyText(card.copyText || card.raw)">复制</button>
                   <button type="button" @click.stop="askFromCard(card)">继续追问</button>
                   <button type="button" @click.stop="openMoveDialog(activeSession)">加入档案夹</button>
                 </div>
@@ -470,7 +470,13 @@
           <button class="detail-close" type="button" aria-label="关闭详情" @click="closeCardDetail">×</button>
         </header>
 
-        <main class="card-detail-body markdown-body" v-html="renderMarkdown(selectedCard.raw || selectedCard.body)"></main>
+        <main class="card-detail-body markdown-body">
+          <div v-html="selectedCard.detailHtml"></div>
+          <details class="raw-content-details">
+            <summary>查看原始内容</summary>
+            <pre class="raw-content-panel">{{ formatRawContent(selectedCard) }}</pre>
+          </details>
+        </main>
         <div v-if="selectedCard.sources?.length" class="card-detail-source-wrap">
           <div v-if="selectedCard.sources?.length" class="card-detail-sources">
             <span v-for="source in selectedCard.sources" :key="source.id">[{{ source.id }}]</span>
@@ -478,7 +484,7 @@
         </div>
 
         <footer class="card-detail-footer">
-          <button type="button" @click="copyText(selectedCard.raw)">复制</button>
+          <button type="button" @click="copyText(selectedCard.copyText || selectedCard.raw)">复制</button>
           <button type="button" @click="askFromCard(selectedCard)">继续追问</button>
           <button type="button" @click="openMoveDialog(activeSession)">加入档案夹</button>
         </footer>
@@ -513,6 +519,12 @@ import { getAiConfig } from '../api/ai';
 import { generateDocument } from '../api/document';
 import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
 import { ANONYMOUS_USER_ID } from '../config/user';
+import {
+  buildReadableCards,
+  formatRawContentForDisplay,
+  markdownToSafeHtml,
+  normalizeAiText
+} from '../utils/aiResultFormatter';
 
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
 const DEFAULT_FOLDER = '默认档案夹';
@@ -1289,94 +1301,14 @@ function getSessionCardCount(session) {
 }
 
 function buildGeneratedCards(text, docType) {
-  if (!text) {
+  const normalized = normalizeAiText(text);
+  if (!normalized) {
     return [];
   }
-  const sections = splitIntoSections(text);
-  const sourceList = extractSources(text);
-  const cards = [];
-
-  cards.push({
-    id: 'summary-card',
-    label: '摘要卡',
-    tone: 'summary',
-    meta: 'Summary',
-    title: inferTitle(sections, '核心摘要'),
-    body: sections[0]?.body || text.slice(0, 180),
-    points: pickPoints(text, ['摘要', '核心', '结论', '要点']).slice(0, 3),
-    sources: sourceList.slice(0, 3),
-    raw: sections[0]?.raw || text
+  return buildReadableCards(normalized, {
+    docType,
+    sources: extractSources(normalized)
   });
-
-  cards.push({
-    id: 'insight-card',
-    label: '观点卡',
-    tone: 'insight',
-    meta: 'Insight',
-    title: inferSectionTitle(sections, ['观点', '分析', '风险', '趋势']) || '关键观点与判断',
-    body: findSectionBody(sections, ['观点', '分析', '风险', '趋势']) || '系统已将回答中的关键判断整理为观点卡，便于继续追问和归档。',
-    points: pickPoints(text, ['风险', '建议', '推测', '判断']).slice(0, 4),
-    sources: sourceList.slice(0, 2),
-    raw: text
-  });
-
-  if (/任务|行动|待办|负责人|截止|清单/.test(text) || /会议纪要|任务/.test(docType)) {
-    cards.push({
-      id: 'action-card',
-      label: '任务卡',
-      tone: 'action',
-      meta: 'Action',
-      title: '可执行任务清单',
-      body: findSectionBody(sections, ['行动', '任务', '待办', '清单']) || '把回答中的行动项整理为任务卡，适合复制到项目计划中。',
-      points: pickPoints(text, ['行动', '任务', '待办', '截止', '负责人']).slice(0, 5),
-      sources: [],
-      raw: text
-    });
-  }
-
-  if (/思维导图|JSON|nodes|children|结构|大纲/.test(text) || /思维导图/.test(docType)) {
-    cards.push({
-      id: 'structure-card',
-      label: '结构卡',
-      tone: 'structure',
-      meta: 'Structure',
-      title: '结构与节点预览',
-      body: findSectionBody(sections, ['结构', '提纲', '思维导图', '章节']) || '该卡片用于承载层级结构、章节框架和思维导图节点。',
-      points: pickPoints(text, ['节点', '结构', '章节', '层级']).slice(0, 5),
-      sources: sourceList.slice(0, 2),
-      raw: text
-    });
-  }
-
-  if (/故事|小说|文案|创作|世界观|角色|剧情/.test(text) || /小说|创作/.test(docType)) {
-    cards.push({
-      id: 'generation-card',
-      label: '生成卡',
-      tone: 'generation',
-      meta: 'Generate',
-      title: '内容生成结果',
-      body: text.slice(0, 360),
-      points: [],
-      sources: sourceList.slice(0, 2),
-      raw: text
-    });
-  }
-
-  if (sourceList.length > 0) {
-    cards.push({
-      id: 'citation-card',
-      label: '引用卡',
-      tone: 'citation',
-      meta: `${sourceList.length} Sources`,
-      title: '参考来源引用',
-      body: '联网搜索和参考资料已整理为引用卡，便于追溯来源和继续核查。',
-      points: sourceList.map((source) => `[${source.id}] ${source.title}`).slice(0, 5),
-      sources: sourceList,
-      raw: sourceList.map((source) => `${source.title} ${source.url}`).join('\n')
-    });
-  }
-
-  return cards;
 }
 
 function splitIntoSections(text) {
@@ -1451,7 +1383,8 @@ async function copyText(text) {
 }
 
 function askFromCard(card) {
-  inputText.value = `请基于这张${card.label}继续展开：\n${card.raw.slice(0, 500)}`;
+  const readableText = normalizeAiText(card.copyText || card.raw || card.body);
+  inputText.value = `请基于这张${card.label}继续展开：\n${readableText.slice(0, 500)}`;
   selectedDocType.value = '智能回答';
   closeCardDetail();
   nextTick(focusComposerInput);
@@ -1465,6 +1398,10 @@ function openCardDetail(card) {
 function closeCardDetail() {
   cardDetailVisible.value = false;
   selectedCard.value = null;
+}
+
+function formatRawContent(card) {
+  return formatRawContentForDisplay(card);
 }
 
 function getDefaultCardTitle(label) {
@@ -1481,64 +1418,7 @@ function getDefaultCardTitle(label) {
 }
 
 function renderMarkdown(value) {
-  const text = String(value || '').trim();
-  if (!text) {
-    return '';
-  }
-  const lines = escapeHtml(text)
-    .replace(/\r\n/g, '\n')
-    .split('\n');
-  const blocks = [];
-  let paragraph = [];
-  let listItems = [];
-
-  const flushParagraph = () => {
-    if (paragraph.length) {
-      blocks.push(`<p>${renderInlineMarkdown(paragraph.join(' '))}</p>`);
-      paragraph = [];
-    }
-  };
-  const flushList = () => {
-    if (listItems.length) {
-      blocks.push(`<ul>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`);
-      listItems = [];
-    }
-  };
-
-  lines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      return;
-    }
-    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      const level = Math.min(heading[1].length + 2, 5);
-      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
-      return;
-    }
-    const bracketHeading = trimmed.match(/^【(.+)】$/);
-    if (bracketHeading) {
-      flushParagraph();
-      flushList();
-      blocks.push(`<h3>${renderInlineMarkdown(bracketHeading[1])}</h3>`);
-      return;
-    }
-    const list = trimmed.match(/^[-*]\s+(.+)$/);
-    if (list) {
-      flushParagraph();
-      listItems.push(list[1]);
-      return;
-    }
-    paragraph.push(trimmed);
-  });
-
-  flushParagraph();
-  flushList();
-  return blocks.join('');
+  return markdownToSafeHtml(value);
 }
 
 function renderInlineMarkdown(value) {
@@ -7348,6 +7228,48 @@ async function confirmDeleteSession(session) {
 .card-detail-body :deep(a:hover) {
   color: #ffe1a3;
   border-bottom-color: rgba(246, 200, 111, 0.56);
+}
+
+.raw-content-details {
+  margin-top: 22px;
+  border-top: 1px solid rgba(246, 200, 111, 0.1);
+  padding-top: 16px;
+}
+
+.raw-content-details summary {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  border-radius: 12px;
+  color: rgba(246, 200, 111, 0.82);
+  font-size: 13px;
+  font-weight: 780;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.raw-content-details summary:hover {
+  color: rgba(255, 247, 231, 0.96);
+  border-color: rgba(246, 200, 111, 0.34);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.raw-content-panel {
+  max-height: 320px;
+  margin: 14px 0 0;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid rgba(246, 200, 111, 0.12);
+  border-radius: 14px;
+  color: rgba(248, 241, 228, 0.74);
+  background: rgba(255, 255, 255, 0.035);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .card-detail-source-wrap {
