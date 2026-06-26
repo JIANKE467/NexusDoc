@@ -8290,4 +8290,214 @@ async function confirmDeleteSession(session) {
     padding-bottom: 0 !important;
   }
 }
+
+/* Final mobile layout guard: prevent the desktop shell from squeezing the phone viewport. */
+@media (max-width: 768px) {
+  .nexus-chat-shell {
+    display: block !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: calc(var(--app-height, 100dvh) - var(--mobile-header-height, 60px) - env(safe-area-inset-top)) !important;
+    min-width: 0 !important;
+    grid-template-columns: none !important;
+    overflow: hidden !important;
+  }
+
+  .chat-main {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .chat-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    right: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    z-index: 910 !important;
+    width: min(86vw, 340px) !important;
+    max-width: min(86vw, 340px) !important;
+    height: var(--app-height, 100dvh) !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    transform: translateX(-108%) !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chat-sidebar.is-open {
+    transform: translateX(0) !important;
+  }
+
+  .sidebar-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 900 !important;
+    display: block !important;
+  }
+
+  .chat-topbar {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) !important;
+    gap: 10px !important;
+    align-items: center !important;
+    min-height: 56px !important;
+    padding: 10px 14px !important;
+    overflow: hidden !important;
+  }
+
+  .chat-topbar h1 {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    font-size: 15px !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .message-viewport {
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: calc(var(--app-height, 100dvh) - var(--mobile-header-height, 60px) - 56px - env(safe-area-inset-top)) !important;
+    padding: 16px 14px calc(var(--composer-safe-bottom, 188px) + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .welcome-panel,
+  .workspace-canvas,
+  .folder-view,
+  .folder-docs,
+  .history-panel,
+  .generated-layout,
+  .generated-card-grid,
+  .card-skeleton-grid,
+  .source-rail {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .hero-stage,
+  .mindmap-preview,
+  .folder-grid,
+  .generated-layout,
+  .generated-layout.has-sources,
+  .generated-card-grid,
+  .card-skeleton-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .hero-stage {
+    padding: 8px 0 16px !important;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(32px, 10vw, 46px) !important;
+  }
+
+  .ocean-stage,
+  .source-rail:empty {
+    display: none !important;
+  }
+
+  .source-rail {
+    margin-top: 12px !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .workspace-card {
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+
+  .new-chat {
+    min-height: 50px !important;
+    border-radius: 16px !important;
+    font-size: 15px !important;
+  }
+
+  .session-item {
+    min-height: 74px !important;
+    padding: 14px !important;
+    border-radius: 17px !important;
+  }
+
+  .session-title {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .session-more {
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .knowledge-card,
+  .citation-card,
+  .folder-card,
+  .folder-doc-item {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .composer-wrap {
+    right: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .composer {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .composer textarea {
+    width: 100% !important;
+    min-height: 46px !important;
+    max-height: 104px !important;
+    font-size: 15px !important;
+  }
+
+  .composer-tools,
+  .composer-left-tools {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .composer-upload-button,
+  .mode-select-trigger,
+  .card-type-menu,
+  .send-button {
+    min-height: 42px !important;
+    touch-action: manipulation;
+  }
+
+  .command-center {
+    width: 100% !important;
+    max-width: none !important;
+    height: min(82vh, 720px) !important;
+    margin-top: auto !important;
+    border-radius: 24px 24px 0 0 !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .composer-left-tools {
+    grid-template-columns: 1fr !important;
+  }
+
+  .message-viewport {
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+  }
+}
 </style>

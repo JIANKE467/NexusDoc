@@ -53,6 +53,9 @@ html,
 body,
 #app {
   height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   overflow: hidden;
 }
 
@@ -67,6 +70,17 @@ body {
   background:
     radial-gradient(circle at 72% 18%, rgba(246, 200, 111, 0.16), transparent 34%),
     linear-gradient(180deg, var(--nx-bg-2), var(--nx-bg));
+}
+
+@media (max-width: 768px) {
+  body {
+    min-width: 0;
+    overscroll-behavior-x: none;
+  }
+
+  * {
+    max-width: 100%;
+  }
 }
 
 a {

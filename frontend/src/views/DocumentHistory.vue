@@ -479,4 +479,78 @@ function estimateCardCount(row) {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 768px) {
+  .history-page {
+    width: 100%;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .history-shell {
+    width: 100%;
+    padding: 22px 14px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .history-header {
+    gap: 14px;
+    align-items: stretch;
+    flex-direction: column;
+    margin-bottom: 16px;
+  }
+
+  .history-title {
+    font-size: 28px;
+    line-height: 1.12;
+  }
+
+  .history-desc {
+    max-width: 100%;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .history-action-button {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+  }
+
+  .history-panel {
+    min-height: 0;
+    overflow: visible;
+    border-radius: 20px;
+  }
+
+  .history-workspace-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .history-workspace-card {
+    min-height: auto;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .history-workspace-card h2 {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+
+  .history-workspace-card p {
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .workspace-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-actions button {
+    min-height: 42px;
+  }
+}
 </style>
