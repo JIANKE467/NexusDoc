@@ -10,7 +10,9 @@ request.interceptors.response.use(
   (response) => {
     const result = response.data;
     if (result.code !== 200) {
-      ElMessage.error(result.message || '请求失败');
+      if (!response.config?.silentError) {
+        ElMessage.error(result.message || '请求失败');
+      }
       return Promise.reject(new Error(result.message || '请求失败'));
     }
     return result.data;
@@ -22,7 +24,9 @@ request.interceptors.response.use(
     const message = isProxyBackendError
       ? '后端服务未启动或不可访问，请先启动 Spring Boot 服务'
       : error.response?.data?.message || error.message || '网络异常';
-    ElMessage.error(message);
+    if (!error.config?.silentError) {
+      ElMessage.error(message);
+    }
     return Promise.reject(error);
   }
 );

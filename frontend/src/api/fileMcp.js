@@ -1,7 +1,7 @@
 import request from './request';
 
 export function getFileMcpCapabilities() {
-  return request.get('/mcp/file/capabilities');
+  return request.get('/mcp/file/capabilities', { silentError: true });
 }
 
 export function parseFile(file) {

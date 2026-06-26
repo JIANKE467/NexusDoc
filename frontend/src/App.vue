@@ -31,9 +31,6 @@
         >
           历史记录
         </button>
-        <button class="command-trigger" type="button" @click="openCommandCenter">
-          Ctrl K
-        </button>
       </nav>
     </el-header>
     <el-main class="app-main">
@@ -65,7 +62,4 @@ function navigateHome(view) {
   router.push({ path: '/', query });
 }
 
-function openCommandCenter() {
-  window.dispatchEvent(new CustomEvent('nexusdoc:open-command-center'));
-}
 </script>

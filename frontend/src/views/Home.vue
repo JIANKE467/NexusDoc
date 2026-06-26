@@ -373,30 +373,12 @@
             </div>
             <button type="button" aria-label="移除上传文件" @click="removeSelectedUploadFile">×</button>
           </div>
-          <div class="composer-source-row" aria-label="输入来源快捷操作">
-            <button type="button" @click="triggerDocumentUpload">
-              <span>↑</span>
-              上传文档
-            </button>
-            <button type="button" @click="pasteClipboardText">
-              <span>⌘</span>
-              粘贴文本
-            </button>
-            <button type="button" @click="prepareUrlAnalysis">
-              <span>⌁</span>
-              网页解析
-            </button>
-            <button type="button" @click="importLink">
-              <span>↗</span>
-              导入链接
-            </button>
-            <button type="button" @click="openCommandCenter">
-              <span>⌘K</span>
-              模板中心
-            </button>
-          </div>
           <div class="composer-tools">
             <div class="composer-left-tools">
+              <button class="composer-upload-button" type="button" @click="triggerDocumentUpload">
+                <span>↑</span>
+                上传文档
+              </button>
               <select v-model="selectedDocType" aria-label="文档类型">
                 <option v-for="item in docTypes" :key="item" :value="item">{{ item }}</option>
               </select>
@@ -6199,17 +6181,18 @@ async function confirmDeleteSession(session) {
   width: min(100%, 1040px);
   max-width: 1040px;
   margin: 0 auto;
-  border: 1px solid rgba(246, 200, 111, 0.28);
+  border: 1px solid rgba(246, 200, 111, 0.34);
   border-radius: 26px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.024)),
-    rgba(10, 11, 15, 0.64);
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03)),
+    rgba(10, 12, 18, 0.88);
   box-shadow:
-    0 24px 90px rgba(0, 0, 0, 0.42),
-    0 0 60px rgba(246, 200, 111, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    0 28px 90px rgba(0, 0, 0, 0.54),
+    0 0 56px rgba(246, 200, 111, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
   pointer-events: auto;
 }
 
@@ -6224,6 +6207,13 @@ async function confirmDeleteSession(session) {
 .composer textarea {
   min-height: 58px;
   padding: 20px 22px 10px;
+  color: rgba(255, 247, 231, 0.92);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.composer textarea::placeholder {
+  color: rgba(248, 241, 228, 0.58);
 }
 
 .file-mcp-pill {
@@ -6304,7 +6294,69 @@ async function confirmDeleteSession(session) {
 }
 
 .composer-tools {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 18px 18px;
+}
+
+.composer-left-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.composer-upload-button,
+.composer select,
+.card-type-menu {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(246, 200, 111, 0.2);
+  border-radius: 13px;
+  color: rgba(255, 247, 231, 0.86);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 740;
+  background: rgba(255, 255, 255, 0.055);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.composer-upload-button {
+  border-color: rgba(246, 200, 111, 0.32);
+}
+
+.composer-upload-button span {
+  color: var(--nx-gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.composer-upload-button:hover,
+.composer select:hover,
+.card-type-menu:hover {
+  transform: translateY(-1px);
+  border-color: rgba(246, 200, 111, 0.38);
+  color: rgba(255, 247, 231, 0.96);
+  background: rgba(246, 200, 111, 0.11);
+}
+
+.card-type-menu span {
+  color: rgba(248, 241, 228, 0.58);
+}
+
+.send-button:disabled {
+  border: 1px solid rgba(246, 200, 111, 0.16);
+  color: rgba(248, 241, 228, 0.46);
+  opacity: 0.58;
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 @media (max-width: 1439px) {
