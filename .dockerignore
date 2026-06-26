@@ -1,0 +1,33 @@
+.git
+.gitignore
+.DS_Store
+
+# Local secrets and environment files must never be sent to Docker build context.
+.env
+.env.*
+!.env.example
+
+# Build outputs and dependency caches
+target/
+frontend/node_modules/
+frontend/dist/
+node_modules/
+.m2/
+.pnpm-store/
+frontend/.pnpm-store/
+
+# IDE / local tooling
+.idea/
+.vscode/
+.codex/
+.agents/
+
+# Logs and runtime files
+*.log
+logs/
+tmp/
+temp/
+runtime/
+uploads/
+downloads/
+exports/

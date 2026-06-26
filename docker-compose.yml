@@ -1,17 +1,16 @@
-version: "3.9"
-
 services:
   db:
     image: mysql:8.0
     container_name: nexusdoc-db
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: nexusdoc
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nexusdoc}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
     ports:
       - "3306:3306"
     volumes:
       - nexusdoc-db-data:/var/lib/mysql
+      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -32,12 +31,20 @@ services:
     env_file:
       - .env
     environment:
-      MYSQL_URL: jdbc:mysql://db:3306/nexusdoc?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      MYSQL_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-nexusdoc}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
       MYSQL_USERNAME: root
-      MYSQL_PASSWORD: rootpassword
-      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY}
-      SILICONFLOW_BASE_URL: ${SILICONFLOW_BASE_URL:-https://api.siliconflow.cn/v1/chat/completions}
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/chat/completions}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SILICONFLOW_BASE_URL: ${SILICONFLOW_BASE_URL:-https://api.xcode.best/v1/chat/completions/v1}
       SILICONFLOW_MODEL: ${SILICONFLOW_MODEL:-gpt-5.4}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      SERPAPI_BASE_URL: ${SERPAPI_BASE_URL:-https://serpapi.com/search}
+      SERPAPI_ENGINE: ${SERPAPI_ENGINE:-google}
+      SERPAPI_HL: ${SERPAPI_HL:-zh-cn}
+      SERPAPI_GL: ${SERPAPI_GL:-cn}
 
   frontend:
     build:
