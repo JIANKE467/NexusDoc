@@ -16,7 +16,13 @@ request.interceptors.response.use(
     return result.data;
   },
   (error) => {
-    ElMessage.error(error.response?.data?.message || error.message || '网络异常');
+    const isProxyBackendError = error.response?.status === 500
+      && typeof error.response?.data === 'string'
+      && error.response.data.includes('http://localhost:8080');
+    const message = isProxyBackendError
+      ? '后端服务未启动或不可访问，请先启动 Spring Boot 服务'
+      : error.response?.data?.message || error.message || '网络异常';
+    ElMessage.error(message);
     return Promise.reject(error);
   }
 );

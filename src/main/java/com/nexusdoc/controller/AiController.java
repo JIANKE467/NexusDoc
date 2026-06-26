@@ -1,5 +1,6 @@
 package com.nexusdoc.controller;
 
+import com.nexusdoc.common.config.DeepSeekProperties;
 import com.nexusdoc.common.config.SiliconFlowProperties;
 import com.nexusdoc.common.result.ApiResponse;
 import com.nexusdoc.dto.AiTestRequest;
@@ -19,15 +20,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController {
 
     private final AiService aiService;
+    private final DeepSeekProperties deepSeekProperties;
     private final SiliconFlowProperties siliconFlowProperties;
 
     @GetMapping("/config")
     public ApiResponse<AiConfigVO> getConfig() {
         return ApiResponse.success(AiConfigVO.builder()
-                .provider("SiliconFlow")
-                .baseUrl(siliconFlowProperties.getBaseUrl())
-                .model(siliconFlowProperties.getModel())
-                .apiKeyConfigured(StringUtils.hasText(siliconFlowProperties.getApiKey()))
+                .provider(StringUtils.hasText(deepSeekProperties.getApiKey())
+                        ? "DeepSeek"
+                        : "SiliconFlow")
+                .baseUrl(StringUtils.hasText(deepSeekProperties.getApiKey())
+                        ? deepSeekProperties.getBaseUrl()
+                        : siliconFlowProperties.getBaseUrl())
+                .model(StringUtils.hasText(deepSeekProperties.getApiKey())
+                        ? deepSeekProperties.getModel()
+                        : siliconFlowProperties.getModel())
+                .apiKeyConfigured(StringUtils.hasText(deepSeekProperties.getApiKey())
+                        || StringUtils.hasText(siliconFlowProperties.getApiKey()))
                 .build());
     }
 

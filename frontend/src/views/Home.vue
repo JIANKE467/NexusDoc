@@ -13,12 +13,10 @@
     </div>
 
     <aside :class="['chat-sidebar', { 'is-open': sidebarOpen }]">
-      <div class="sidebar-brand">
-        <div class="brand-mark">✦</div>
-        <div>
-          <strong>文枢 NexusDoc</strong>
-          <span>AI 文档知识操作系统</span>
-        </div>
+      <div class="workspace-card">
+        <span class="workspace-label">当前工作台</span>
+        <strong>{{ activeSession?.title || '新文档对话' }}</strong>
+        <small>{{ activeSession?.isDraft ? 'Draft · 未生成' : '已生成 · 可继续追问' }}</small>
       </div>
 
       <button class="new-chat" type="button" @click="createSession">
@@ -158,29 +156,23 @@
         <div v-else-if="activeMessages.length === 0" class="welcome-panel">
           <section class="hero-stage" aria-labelledby="home-hero-title">
             <div class="hero-copy">
-              <span class="status-pill">新一代 AI 知识操作系统</span>
-              <p class="hero-kicker">Nexus Knowledge OS</p>
+              <span class="status-pill">AI 文档知识工作台</span>
+              <p class="hero-kicker">Nexus Knowledge Workspace</p>
               <h2 id="home-hero-title">
-                让每一份文档，<br />
-                <span>长成可操作的</span><br />
-                知识卡片。
+                把文档，整理成<br />
+                <span>可追问的知识卡片。</span>
               </h2>
               <p class="hero-subtitle">
-                文枢 NexusDoc 将文档理解、结构化知识、可交互卡片与来源引用融为一体，让知识真正为你所用，可问、可查、可推理、可执行。
+                文枢 NexusDoc 帮你把长文、资料和问题拆解成摘要、观点、引用、任务与结构卡片，让知识可以继续追问、复制、归档和复用。
               </p>
-              <div class="hero-metrics">
-                <div><strong>12,842</strong><span>文档已解析</span></div>
-                <div><strong>86,721</strong><span>知识卡片</span></div>
-                <div><strong>98.6%</strong><span>解析准确率</span></div>
-                <div><strong>1.2s</strong><span>平均生成速度</span></div>
-              </div>
-              <div class="hero-actions">
-                <button class="primary-cta" type="button" @click="startProcessing">
-                  开始生成卡片
-                </button>
-                <button class="secondary-cta" type="button" @click="openCommandCenter">
-                  打开命令中心
-                </button>
+              <div class="hero-flow" aria-label="文档处理流程">
+                <span>输入文档</span>
+                <i></i>
+                <span>生成卡片</span>
+                <i></i>
+                <span>继续追问</span>
+                <i></i>
+                <span>归档复用</span>
               </div>
             </div>
 
@@ -213,8 +205,8 @@
               </div>
               <div class="orbit-card orbit-action">
                 <small>任务卡</small>
-                <strong>转化行动清单</strong>
-                <span>追踪执行进度</span>
+                <strong>整理行动清单</strong>
+                <span>沉淀后续执行事项</span>
               </div>
               <div class="orbit-card orbit-structure">
                 <small>结构卡</small>
@@ -366,7 +358,7 @@
           <textarea
             v-model="inputText"
             rows="1"
-            placeholder="粘贴文档，告诉 NexusDoc 要生成哪些知识卡片…"
+            placeholder="粘贴文档、输入问题或需求，告诉 NexusDoc 你想生成哪些知识卡片…"
             @input="resizeComposer"
             @keydown="handleComposerKeydown"
           ></textarea>
@@ -5354,6 +5346,279 @@ async function confirmDeleteSession(session) {
 
   .workspace-tabs button {
     flex: 0 0 auto;
+  }
+}
+
+/* Focused polish: credible workspace hierarchy without duplicate brand or fake metrics */
+.workspace-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(246, 200, 111, 0.12), rgba(255, 255, 255, 0.035)),
+    rgba(14, 15, 20, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.workspace-label {
+  color: rgba(248, 241, 228, 0.46);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.workspace-card strong {
+  overflow: hidden;
+  color: var(--nx-text);
+  font-size: 17px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-card small {
+  color: rgba(248, 241, 228, 0.58);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.welcome-panel {
+  gap: 28px;
+}
+
+.hero-stage {
+  grid-template-columns: minmax(0, 0.98fr) minmax(440px, 0.82fr);
+  align-items: center;
+  min-height: min(680px, calc(100vh - 210px));
+  padding: clamp(44px, 5vw, 78px) clamp(36px, 5.5vw, 78px) 34px;
+}
+
+.hero-copy {
+  max-width: 780px;
+}
+
+.hero-copy h2 {
+  max-width: 760px;
+  margin-top: 18px;
+  font-size: clamp(52px, 5.2vw, 86px);
+  line-height: 1.04;
+  letter-spacing: -0.058em;
+  text-shadow: 0 14px 42px rgba(0, 0, 0, 0.38);
+}
+
+.hero-copy h2 span {
+  display: inline-block;
+  background: linear-gradient(100deg, #fff2c9 0%, #f6c86f 46%, #d9952b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+.hero-subtitle {
+  max-width: 680px;
+  color: rgba(248, 241, 228, 0.72);
+  font-size: clamp(15px, 1.05vw, 17px);
+  line-height: 1.85;
+}
+
+.hero-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.hero-flow span {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 13px;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 999px;
+  color: rgba(248, 241, 228, 0.82);
+  font-size: 13px;
+  font-weight: 720;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.hero-flow i {
+  width: 22px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(246, 200, 111, 0.56), transparent);
+}
+
+.ocean-stage {
+  width: min(100%, 560px);
+  min-height: 520px;
+  justify-self: center;
+  transform: translateX(10px) scale(0.96);
+  filter: saturate(0.94);
+}
+
+.knowledge-core {
+  box-shadow:
+    0 0 36px rgba(246, 184, 70, 0.34),
+    inset 0 0 34px rgba(255, 255, 255, 0.08);
+}
+
+.orbit-ring {
+  border-color: rgba(246, 200, 111, 0.13);
+}
+
+.orbit-card {
+  width: 178px;
+  border-color: rgba(246, 200, 111, 0.2);
+  background: rgba(17, 18, 24, 0.88);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+}
+
+.orbit-card strong {
+  color: rgba(248, 241, 228, 0.95);
+}
+
+.orbit-card span {
+  color: rgba(248, 241, 228, 0.62);
+}
+
+.orbit-summary {
+  top: 28px;
+  left: 48%;
+}
+
+.orbit-insight {
+  top: 92px;
+  right: 2%;
+}
+
+.orbit-quote {
+  top: 232px;
+  right: 4%;
+}
+
+.orbit-structure {
+  top: 238px;
+  left: 1%;
+}
+
+.orbit-source {
+  bottom: 26px;
+  left: 39%;
+}
+
+.orbit-action {
+  bottom: 38px;
+  right: 16%;
+  opacity: 0.82;
+}
+
+.message-viewport {
+  padding-bottom: 236px;
+}
+
+.composer-wrap {
+  left: 300px;
+  right: 0;
+  padding: 18px clamp(32px, 7vw, 92px) 26px;
+  pointer-events: none;
+}
+
+.composer {
+  max-width: 820px;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+
+.composer textarea {
+  min-height: 54px;
+}
+
+.prompt-grid {
+  margin-top: 8px;
+}
+
+.prompt-card {
+  min-height: 162px;
+}
+
+@media (max-width: 1439px) {
+  .hero-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 0.72fr);
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(48px, 5vw, 74px);
+  }
+
+  .ocean-stage {
+    transform: translateX(0) scale(0.86);
+    transform-origin: center;
+  }
+
+  .orbit-action {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .hero-stage {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .ocean-stage {
+    min-height: 430px;
+    transform: scale(0.82);
+  }
+
+  .composer-wrap {
+    left: 280px;
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+}
+
+@media (max-width: 768px) {
+  .workspace-card {
+    margin-top: 48px;
+  }
+
+  .hero-stage {
+    padding: 28px 18px 24px;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(40px, 12vw, 56px);
+    letter-spacing: -0.045em;
+  }
+
+  .hero-flow i {
+    display: none;
+  }
+
+  .ocean-stage {
+    min-height: 260px;
+    transform: none;
+  }
+
+  .orbit-ring,
+  .orbit-node,
+  .orbit-quote,
+  .orbit-action,
+  .orbit-source {
+    display: none;
+  }
+
+  .composer-wrap {
+    left: 0;
+    padding: 12px 14px 16px;
   }
 }
 </style>

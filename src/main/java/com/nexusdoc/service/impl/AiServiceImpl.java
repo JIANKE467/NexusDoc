@@ -3,6 +3,7 @@ package com.nexusdoc.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexusdoc.ai.SiliconFlowChatRequest;
 import com.nexusdoc.ai.SiliconFlowChatResponse;
+import com.nexusdoc.common.config.DeepSeekProperties;
 import com.nexusdoc.common.config.SiliconFlowProperties;
 import com.nexusdoc.common.exception.BusinessException;
 import com.nexusdoc.service.AiService;
@@ -30,6 +31,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class AiServiceImpl implements AiService {
 
+    private final DeepSeekProperties deepSeekProperties;
+
     private final SiliconFlowProperties siliconFlowProperties;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -46,14 +49,34 @@ public class AiServiceImpl implements AiService {
         if (!StringUtils.hasText(prompt)) {
             throw new BusinessException("AI 提示词不能为空");
         }
-        validateConfig();
+        List<AiProviderConfig> providers = buildProviderConfigs();
+        if (providers.isEmpty()) {
+            throw new BusinessException("AI API Key 未配置，请检查后端运行环境变量 DEEPSEEK_API_KEY 或 SILICONFLOW_API_KEY");
+        }
 
+        BusinessException lastBusinessException = null;
+        for (AiProviderConfig provider : providers) {
+            try {
+                return generateWithProvider(prompt, provider);
+            } catch (BusinessException exception) {
+                lastBusinessException = exception;
+                log.warn("AI 服务调用失败，provider={}，尝试下一个可用模型", provider.name());
+            }
+        }
+        if (lastBusinessException != null) {
+            throw lastBusinessException;
+        }
+        throw new BusinessException("AI 服务暂时不可用，请稍后重试");
+    }
+
+    private String generateWithProvider(String prompt, AiProviderConfig provider) {
+        validateProviderConfig(provider);
         try {
-            log.info("开始调用 AI 服务，model={}", siliconFlowProperties.getModel());
-            SiliconFlowChatRequest request = buildRequest(prompt);
+            log.info("开始调用 AI 服务，provider={}，model={}", provider.name(), provider.model());
+            SiliconFlowChatRequest request = buildRequest(prompt, provider);
             SiliconFlowChatResponse response = restClient.post()
-                    .uri(siliconFlowProperties.getBaseUrl())
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + siliconFlowProperties.getApiKey())
+                    .uri(provider.baseUrl())
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + provider.apiKey())
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(request)
@@ -66,29 +89,30 @@ public class AiServiceImpl implements AiService {
         } catch (BusinessException exception) {
             throw exception;
         } catch (RestClientResponseException exception) {
-            log.error("AI 服务调用失败，status={}", exception.getStatusCode());
+            log.error("AI 服务调用失败，provider={}，status={}", provider.name(), exception.getStatusCode());
             throw new BusinessException("AI 服务暂时不可用，请稍后重试");
         } catch (Exception exception) {
-            log.warn("AI 服务 Java HTTP 调用失败，尝试兼容请求方式：{}", exception.getMessage());
-            return generateWithCurlFallback(prompt);
+            log.warn("AI 服务 Java HTTP 调用失败，provider={}，尝试兼容请求方式：{}",
+                    provider.name(), exception.getMessage());
+            return generateWithCurlFallback(prompt, provider);
         }
     }
 
-    private SiliconFlowChatRequest buildRequest(String prompt) {
+    private SiliconFlowChatRequest buildRequest(String prompt, AiProviderConfig provider) {
         return SiliconFlowChatRequest.userPrompt(
-                siliconFlowProperties.getModel(),
+                provider.model(),
                 prompt,
-                siliconFlowProperties.getTemperature(),
-                siliconFlowProperties.getMaxTokens(),
-                siliconFlowProperties.getStream()
+                provider.temperature(),
+                provider.maxTokens(),
+                provider.stream()
         );
     }
 
-    private String generateWithCurlFallback(String prompt) {
+    private String generateWithCurlFallback(String prompt, AiProviderConfig provider) {
         Path requestBodyPath = null;
         try {
             requestBodyPath = Files.createTempFile("nexusdoc-ai-request-", ".json");
-            Files.writeString(requestBodyPath, objectMapper.writeValueAsString(buildRequest(prompt)),
+            Files.writeString(requestBodyPath, objectMapper.writeValueAsString(buildRequest(prompt, provider)),
                     StandardCharsets.UTF_8);
 
             ProcessBuilder processBuilder = new ProcessBuilder(List.of(
@@ -113,8 +137,7 @@ public class AiServiceImpl implements AiService {
                     header = "Content-Type: application/json"
                     header = "Accept: application/json"
                     header = "Authorization: Bearer %s"
-                    """.formatted(siliconFlowProperties.getBaseUrl(),
-                    siliconFlowProperties.getApiKey());
+                    """.formatted(provider.baseUrl(), provider.apiKey());
             process.getOutputStream().write(curlConfig.getBytes(StandardCharsets.UTF_8));
             process.getOutputStream().close();
 
@@ -124,18 +147,18 @@ public class AiServiceImpl implements AiService {
                 process.destroyForcibly();
                 throw new BusinessException("AI 服务暂时不可用，请稍后重试");
             }
-            return parseCurlResponse(output);
+            return parseCurlResponse(output, provider);
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            log.error("AI 服务兼容请求方式调用失败：{}", exception.getMessage());
+            log.error("AI 服务兼容请求方式调用失败，provider={}：{}", provider.name(), exception.getMessage());
             throw new BusinessException("AI 服务暂时不可用，请稍后重试");
         } finally {
             deleteTempFile(requestBodyPath);
         }
     }
 
-    private String parseCurlResponse(String output) throws IOException {
+    private String parseCurlResponse(String output, AiProviderConfig provider) throws IOException {
         if (!StringUtils.hasText(output)) {
             throw new BusinessException("AI 服务暂时不可用，请稍后重试");
         }
@@ -146,7 +169,7 @@ public class AiServiceImpl implements AiService {
         String body = output.substring(0, splitIndex).trim();
         String status = output.substring(splitIndex + 1).trim();
         if (!status.startsWith("2")) {
-            log.error("AI 服务兼容请求方式调用失败，status={}", status);
+            log.error("AI 服务兼容请求方式调用失败，provider={}，status={}", provider.name(), status);
             throw new BusinessException("AI 服务暂时不可用，请稍后重试");
         }
         String content = extractContent(objectMapper.readValue(body, SiliconFlowChatResponse.class));
@@ -165,16 +188,50 @@ public class AiServiceImpl implements AiService {
         }
     }
 
-    private void validateConfig() {
-        if (!StringUtils.hasText(siliconFlowProperties.getApiKey())) {
-            throw new BusinessException("AI API Key 未配置，请检查后端运行环境变量 SILICONFLOW_API_KEY");
+    private List<AiProviderConfig> buildProviderConfigs() {
+        return List.of(
+                new AiProviderConfig(
+                        "DeepSeek",
+                        deepSeekProperties.getApiKey(),
+                        normalizeChatCompletionsUrl(deepSeekProperties.getBaseUrl()),
+                        deepSeekProperties.getModel(),
+                        deepSeekProperties.getTemperature(),
+                        deepSeekProperties.getMaxTokens(),
+                        deepSeekProperties.getStream()
+                ),
+                new AiProviderConfig(
+                        "SiliconFlow",
+                        siliconFlowProperties.getApiKey(),
+                        normalizeChatCompletionsUrl(siliconFlowProperties.getBaseUrl()),
+                        siliconFlowProperties.getModel(),
+                        siliconFlowProperties.getTemperature(),
+                        siliconFlowProperties.getMaxTokens(),
+                        siliconFlowProperties.getStream()
+                )
+        ).stream().filter(provider -> StringUtils.hasText(provider.apiKey())).toList();
+    }
+
+    private void validateProviderConfig(AiProviderConfig provider) {
+        if (!StringUtils.hasText(provider.apiKey())) {
+            throw new BusinessException("AI API Key 未配置，请检查后端运行环境变量");
         }
-        if (!StringUtils.hasText(siliconFlowProperties.getBaseUrl())) {
-            throw new BusinessException("AI 接口地址未配置，请检查 siliconflow.base-url");
+        if (!StringUtils.hasText(provider.baseUrl())) {
+            throw new BusinessException("AI 接口地址未配置，请检查后端 AI base-url 配置");
         }
-        if (!StringUtils.hasText(siliconFlowProperties.getModel())) {
-            throw new BusinessException("AI 模型名称未配置，请检查 siliconflow.model");
+        if (!StringUtils.hasText(provider.model())) {
+            throw new BusinessException("AI 模型名称未配置，请检查后端 AI model 配置");
         }
+    }
+
+    private String normalizeChatCompletionsUrl(String baseUrl) {
+        if (!StringUtils.hasText(baseUrl)) {
+            return baseUrl;
+        }
+        String trimmed = baseUrl.trim();
+        if (trimmed.endsWith("/chat/completions")) {
+            return trimmed;
+        }
+        return trimmed.replaceAll("/+$", "") + "/chat/completions";
     }
 
     private String extractContent(SiliconFlowChatResponse response) {
@@ -187,5 +244,15 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException("AI 生成结果为空，请稍后重试");
         }
         return choice.getMessage().getContent();
+    }
+
+    private record AiProviderConfig(
+            String name,
+            String apiKey,
+            String baseUrl,
+            String model,
+            Double temperature,
+            Integer maxTokens,
+            Boolean stream) {
     }
 }

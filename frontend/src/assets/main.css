@@ -179,38 +179,6 @@ a {
   cursor: pointer;
 }
 
-.user-chip {
-  display: inline-flex;
-  height: 38px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 214, 143, 0.14);
-  border-radius: 999px;
-  color: var(--nx-text-soft);
-  font: inherit;
-  background: rgba(255, 255, 255, 0.035);
-  cursor: pointer;
-}
-
-.user-chip span {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border-radius: 999px;
-  color: #1a1208;
-  background: linear-gradient(135deg, var(--nx-gold), var(--nx-gold-2));
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.user-chip i {
-  color: var(--nx-text-muted);
-  font-style: normal;
-  font-size: 12px;
-}
-
 .app-main {
   flex: 1;
   min-height: 0;
@@ -230,8 +198,7 @@ a {
   }
 
   .brand::before,
-  .brand::after,
-  .user-chip {
+  .brand::after {
     display: none;
   }
 

@@ -34,10 +34,6 @@
         <button class="command-trigger" type="button" @click="openCommandCenter">
           Ctrl K
         </button>
-        <button class="user-chip" type="button" aria-label="用户菜单">
-          <span>F</span>
-          <i>⌄</i>
-        </button>
       </nav>
     </el-header>
     <el-main class="app-main">
