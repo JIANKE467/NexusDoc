@@ -9572,4 +9572,323 @@ async function confirmDeleteSession(session) {
     border-radius: 15px !important;
   }
 }
+
+/* Mobile compact shell: one header, lighter hero, GPT-style composer. */
+@media (max-width: 768px) {
+  .app-shell > .topbar {
+    display: none !important;
+  }
+
+  .nexus-chat-shell {
+    height: var(--app-height, 100dvh) !important;
+  }
+
+  .chat-topbar {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 42px !important;
+    min-height: 56px !important;
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px !important;
+    border-bottom: 1px solid rgba(246, 200, 111, 0.12) !important;
+    background: rgba(5, 7, 11, 0.92) !important;
+    backdrop-filter: blur(16px) saturate(1.12) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.12) !important;
+  }
+
+  .chat-topbar > div:not(.topbar-actions) {
+    min-width: 0 !important;
+  }
+
+  .chat-topbar > div:not(.topbar-actions)::before {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255, 247, 231, 0.96);
+    content: "✦  文枢 NexusDoc";
+    font-size: 18px;
+    font-weight: 850;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+
+  .chat-topbar .eyebrow,
+  .chat-topbar h1,
+  .topbar-actions {
+    display: none !important;
+  }
+
+  .sidebar-toggle {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 14px !important;
+    font-size: 18px !important;
+  }
+
+  .message-viewport {
+    height: calc(var(--app-height, 100dvh) - 56px - env(safe-area-inset-top)) !important;
+    padding: 12px 14px calc(var(--composer-safe-bottom, 112px) + env(safe-area-inset-bottom)) !important;
+    scroll-padding-bottom: calc(var(--composer-safe-bottom, 112px) + env(safe-area-inset-bottom)) !important;
+  }
+
+  .welcome-panel {
+    gap: 16px !important;
+    min-height: auto !important;
+    padding: 0 0 18px !important;
+  }
+
+  .hero-stage {
+    display: block !important;
+    min-height: auto !important;
+    padding: 10px 2px 8px !important;
+  }
+
+  .hero-stage::before,
+  .ocean-stage,
+  .mindmap-preview,
+  .section-heading,
+  .prompt-grid,
+  .workspace-tabs,
+  .suggestion-chips {
+    display: none !important;
+  }
+
+  .hero-copy {
+    max-width: 100% !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+
+  .hero-copy .status-pill {
+    height: 28px !important;
+    margin-bottom: 10px !important;
+    padding: 0 11px !important;
+    font-size: 11px !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  .hero-kicker {
+    display: none !important;
+  }
+
+  .hero-copy h2 {
+    max-width: 12em !important;
+    margin: 0 !important;
+    font-size: clamp(28px, 7.8vw, 36px) !important;
+    line-height: 1.08 !important;
+    letter-spacing: -0.035em !important;
+  }
+
+  .hero-copy h2 br {
+    display: none !important;
+  }
+
+  .hero-copy h2 span {
+    display: inline !important;
+  }
+
+  .hero-copy p:not(.hero-kicker) {
+    max-width: 100% !important;
+    margin-top: 10px !important;
+    color: rgba(248, 241, 228, 0.68) !important;
+    font-size: 13.5px !important;
+    line-height: 1.58 !important;
+  }
+
+  .hero-flow {
+    display: flex !important;
+    gap: 7px !important;
+    margin-top: 12px !important;
+    overflow-x: auto !important;
+    padding-bottom: 2px !important;
+  }
+
+  .hero-flow span {
+    height: 30px !important;
+    flex: 0 0 auto !important;
+    padding: 0 11px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+  }
+
+  .hero-flow i {
+    display: none !important;
+  }
+
+  .composer-wrap {
+    right: 0 !important;
+    left: 0 !important;
+    padding: 0 10px calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .composer-wrap::before {
+    height: 112px !important;
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(5, 7, 11, 0),
+        rgba(5, 7, 11, 0.64) 36%,
+        rgba(5, 7, 11, 0.95)
+      ) !important;
+  }
+
+  .composer {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 40px !important;
+    gap: 7px !important;
+    align-items: end !important;
+    width: 100% !important;
+    min-height: 58px !important;
+    max-height: 138px !important;
+    padding: 8px !important;
+    overflow: visible !important;
+    border-radius: 28px !important;
+    background: rgba(12, 14, 19, 0.94) !important;
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.44),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  }
+
+  .composer textarea {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    min-height: 40px !important;
+    max-height: 82px !important;
+    padding: 9px 6px 8px 12px !important;
+    overflow-y: auto !important;
+    font-size: 15px !important;
+    line-height: 1.45 !important;
+    background: transparent !important;
+  }
+
+  .composer-tools {
+    display: contents !important;
+    padding: 0 !important;
+  }
+
+  .composer-left-tools {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    max-height: 34px !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    padding: 0 2px 1px !important;
+    scrollbar-width: none;
+  }
+
+  .composer-left-tools::-webkit-scrollbar {
+    display: none;
+  }
+
+  .composer-upload-button,
+  .mode-select-trigger,
+  .card-type-menu {
+    height: 32px !important;
+    min-height: 32px !important;
+    flex: 0 0 auto !important;
+    padding: 0 10px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    font-weight: 760 !important;
+    white-space: nowrap !important;
+  }
+
+  .composer-upload-button {
+    width: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    color: transparent !important;
+  }
+
+  .composer-upload-button span {
+    color: rgba(246, 200, 111, 0.96) !important;
+    font-size: 16px !important;
+  }
+
+  .card-type-menu span {
+    display: none !important;
+  }
+
+  .send-button {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    align-self: end !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    font-size: 0 !important;
+  }
+
+  .send-button span {
+    display: none !important;
+  }
+
+  .send-button::before {
+    content: "↑";
+    color: #1a1208;
+    font-size: 18px;
+    font-weight: 950;
+    line-height: 1;
+  }
+
+  .send-button:disabled::before {
+    color: rgba(248, 241, 228, 0.42);
+  }
+
+  .file-mcp-pill {
+    grid-column: 1 / -1 !important;
+    grid-row: 3 !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    border-radius: 16px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-topbar {
+    min-height: 54px !important;
+    padding-right: 10px !important;
+    padding-left: 10px !important;
+  }
+
+  .chat-topbar > div:not(.topbar-actions)::before {
+    font-size: 17px !important;
+  }
+
+  .message-viewport {
+    padding: 10px 12px calc(var(--composer-safe-bottom, 106px) + env(safe-area-inset-bottom)) !important;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(26px, 7.3vw, 32px) !important;
+  }
+
+  .composer-wrap {
+    padding-right: 8px !important;
+    padding-left: 8px !important;
+  }
+
+  .composer-left-tools {
+    max-height: 32px !important;
+  }
+
+  .composer-upload-button,
+  .mode-select-trigger,
+  .card-type-menu {
+    height: 30px !important;
+    min-height: 30px !important;
+    font-size: 11.5px !important;
+  }
+}
 </style>
