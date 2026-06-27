@@ -341,15 +341,28 @@
 
             <aside v-if="sourceCards.length > 0" class="source-rail">
               <div class="source-rail-head">
-                <span>参考来源</span>
+                <div>
+                  <span>参考来源</span>
+                  <small>{{ isSourceExpanded ? '全部来源' : `默认显示 ${visibleSourceCards.length} 条` }}</small>
+                </div>
                 <strong>{{ sourceCards.length }}</strong>
               </div>
-              <article v-for="source in sourceCards" :key="source.id" class="citation-card">
-                <span>[{{ source.id }}] {{ source.site || 'Reference' }}</span>
-                <strong>{{ source.title }}</strong>
-                <p>{{ source.snippet }}</p>
-                <a :href="source.url" target="_blank" rel="noreferrer">打开来源</a>
-              </article>
+              <div class="source-list">
+                <article v-for="source in visibleSourceCards" :key="source.id" class="citation-card">
+                  <span>[{{ source.id }}] {{ source.site || 'Reference' }}</span>
+                  <strong>{{ source.title }}</strong>
+                  <p>{{ source.snippet }}</p>
+                  <a :href="source.url" target="_blank" rel="noreferrer">打开来源</a>
+                </article>
+              </div>
+              <button
+                v-if="hiddenSourceCount > 0"
+                class="source-toggle"
+                type="button"
+                @click="isSourceExpanded = !isSourceExpanded"
+              >
+                {{ isSourceExpanded ? '收起来源' : `查看全部 ${sourceCards.length} 个来源` }}
+              </button>
             </aside>
           </section>
 
@@ -566,6 +579,7 @@ const quickCardPills = [
 ];
 const skeletonCards = ['正在拆解文档…', '正在生成摘要卡…', '正在提取观点…', '正在整理引用来源…'];
 const modeTabs = ['智能问答', '文档解析', '链接解析', '长文档导入'];
+const DEFAULT_VISIBLE_SOURCE_COUNT = 3;
 const suggestionPrompts = [
   '这篇论文的主要贡献是什么？',
   '作者的核心观点有哪些？',
@@ -652,6 +666,7 @@ let scrollFrame = 0;
 let featureObserver = null;
 let composerResizeObserver = null;
 const shouldFollowStream = ref(false);
+const isSourceExpanded = ref(false);
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
@@ -668,6 +683,13 @@ const latestAssistantMessage = computed(() => {
 const latestAssistantText = computed(() => latestAssistantMessage.value?.content || '');
 const isGeneratingCards = computed(() => Boolean(latestAssistantMessage.value?.loading && !latestAssistantText.value.trim()));
 const sourceCards = computed(() => extractSources(latestAssistantText.value));
+const visibleSourceCards = computed(() => {
+  if (isSourceExpanded.value) {
+    return sourceCards.value;
+  }
+  return sourceCards.value.slice(0, DEFAULT_VISIBLE_SOURCE_COUNT);
+});
+const hiddenSourceCount = computed(() => Math.max(sourceCards.value.length - DEFAULT_VISIBLE_SOURCE_COUNT, 0));
 const generatedCards = computed(() => buildGeneratedCards(latestAssistantText.value, selectedDocType.value));
 const filteredGeneratedCards = computed(() => {
   if (activeCardFilter.value === '全部') {
@@ -835,6 +857,13 @@ watch(activeNav, async () => {
   teardownComposerSafeArea();
   initComposerSafeArea();
 });
+
+watch(
+  () => latestAssistantMessage.value?.id,
+  () => {
+    isSourceExpanded.value = false;
+  }
+);
 
 async function loadAiConfig() {
   aiConfig.value = await getAiConfig();
@@ -1299,7 +1328,7 @@ function handleMessageViewportScroll() {
   if (!sending.value) {
     return;
   }
-  shouldFollowStream.value = isViewportNearBottom();
+  shouldFollowStream.value = false;
 }
 
 function requestScrollProgress() {
@@ -1354,14 +1383,14 @@ async function sendMessage() {
   patchSession(sessionId, nextSessionMeta);
   inputText.value = '';
   sending.value = true;
-  shouldFollowStream.value = true;
+  shouldFollowStream.value = false;
   if (file) {
     selectedUploadStatus.value = '解析生成中';
   }
   persistSessions();
   await nextTick();
   resetComposerHeight();
-  scrollToLatestGeneratedCard();
+  await scrollWorkspaceToTop();
 
   try {
     if (file) {
@@ -1405,10 +1434,7 @@ async function sendMessage() {
     sending.value = false;
     persistSessions();
     await nextTick();
-    if (shouldFollowStream.value) {
-      await scrollToLatestGeneratedCard({ smooth: false });
-      shouldFollowStream.value = false;
-    }
+    shouldFollowStream.value = false;
   }
 }
 
@@ -1436,7 +1462,6 @@ async function generateTextWithStream({ sessionId, assistantMessage, payload }) 
           loading: false,
           content: buildStreamingAssistantContent(streamedText, streamedSources)
         });
-        scrollToLatestGeneratedCard({ smooth: false });
       },
       onSource: (source) => {
         if (!source?.url && !source?.title) {
@@ -1447,7 +1472,6 @@ async function generateTextWithStream({ sessionId, assistantMessage, payload }) 
           loading: false,
           content: buildStreamingAssistantContent(streamedText, streamedSources)
         });
-        scrollToLatestGeneratedCard({ smooth: false });
       },
       onWarning: (message) => {
         ElMessage.warning(message);
@@ -1534,7 +1558,7 @@ async function refreshAfterGeneration(session) {
     listDocuments(ANONYMOUS_USER_ID),
     nextTick()
   ]);
-  await scrollToLatestGeneratedCard({ smooth: true });
+  await scrollWorkspaceToTop();
   shouldFollowStream.value = false;
 }
 
@@ -1597,7 +1621,6 @@ async function revealAssistantMessage(sessionId, messageId, fullText) {
       content: visibleText
     });
     await wait(14);
-    scrollToLatestGeneratedCard({ smooth: false });
   }
 }
 
@@ -9337,6 +9360,216 @@ async function confirmDeleteSession(session) {
 
   .send-button {
     min-width: 76px !important;
+  }
+}
+
+/* Final source/result layout: keep references as a controlled auxiliary panel. */
+.generated-layout.has-sources {
+  grid-template-columns: minmax(0, 1fr) 300px !important;
+  gap: 22px !important;
+  align-items: start !important;
+}
+
+.generated-card-grid {
+  align-items: start !important;
+  gap: 18px !important;
+}
+
+.source-rail {
+  position: sticky !important;
+  top: 18px !important;
+  display: grid !important;
+  max-height: min(560px, calc(var(--app-height, 100dvh) - 210px)) !important;
+  align-self: start !important;
+  gap: 10px !important;
+  overflow: hidden !important;
+  padding: 14px !important;
+  border: 1px solid rgba(246, 200, 111, 0.14) !important;
+  border-radius: 22px !important;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(246, 200, 111, 0.08), transparent 34%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+    rgba(10, 12, 18, 0.78) !important;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.26) !important;
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.source-rail-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 0 2px 4px !important;
+}
+
+.source-rail-head div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.source-rail-head span {
+  color: rgba(255, 244, 220, 0.92) !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.04em !important;
+}
+
+.source-rail-head small {
+  color: rgba(248, 241, 228, 0.46);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.source-rail-head strong {
+  display: inline-flex !important;
+  min-width: 30px !important;
+  height: 26px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(246, 200, 111, 0.22) !important;
+  border-radius: 999px !important;
+  color: rgba(255, 222, 158, 0.95) !important;
+  font-size: 12px !important;
+  background: rgba(246, 200, 111, 0.09) !important;
+}
+
+.source-list {
+  display: grid;
+  max-height: min(430px, calc(var(--app-height, 100dvh) - 310px));
+  gap: 10px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(246, 200, 111, 0.34) transparent;
+}
+
+.source-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.source-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.source-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(246, 200, 111, 0.28);
+}
+
+.citation-card {
+  display: grid !important;
+  gap: 8px !important;
+  min-height: auto !important;
+  padding: 13px !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+    rgba(13, 15, 21, 0.78) !important;
+}
+
+.citation-card > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(246, 200, 111, 0.76) !important;
+  font-size: 11.5px !important;
+  font-weight: 780 !important;
+  line-height: 1.2 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citation-card strong {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  color: rgba(255, 246, 225, 0.9) !important;
+  font-size: 13.5px !important;
+  line-height: 1.42 !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.citation-card p {
+  display: -webkit-box !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  color: rgba(248, 241, 228, 0.62) !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.citation-card a {
+  display: inline-flex !important;
+  width: fit-content !important;
+  height: 30px !important;
+  align-items: center !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(246, 200, 111, 0.18) !important;
+  border-radius: 999px !important;
+  color: rgba(255, 225, 162, 0.9) !important;
+  font-size: 12px !important;
+  font-weight: 760 !important;
+  background: rgba(246, 200, 111, 0.075) !important;
+}
+
+.source-toggle {
+  width: 100%;
+  height: 36px;
+  border: 1px solid rgba(246, 200, 111, 0.18);
+  border-radius: 13px;
+  color: rgba(255, 232, 180, 0.88);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 760;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+}
+
+.source-toggle:hover {
+  border-color: rgba(246, 200, 111, 0.36);
+  color: rgba(255, 247, 231, 0.96);
+  background: rgba(246, 200, 111, 0.1);
+}
+
+.raw-response {
+  margin-top: 14px !important;
+}
+
+@media (max-width: 1100px) {
+  .generated-layout.has-sources {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .source-rail {
+    position: static !important;
+    max-height: none !important;
+    margin-top: 16px !important;
+  }
+
+  .source-list {
+    max-height: 320px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .source-rail {
+    padding: 12px !important;
+    border-radius: 18px !important;
+  }
+
+  .source-list {
+    max-height: 280px !important;
+  }
+
+  .citation-card {
+    padding: 12px !important;
+    border-radius: 15px !important;
   }
 }
 </style>
