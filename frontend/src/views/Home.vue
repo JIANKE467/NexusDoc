@@ -800,11 +800,46 @@ const selectedUploadHint = computed(() => {
 function updateAppHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   document.documentElement.style.setProperty('--app-height', `${height}px`);
+  updateMobileViewportVars();
 }
 
 function updateComposerSafeBottom(height = 0) {
   const safeHeight = Math.max(150, Math.ceil(height) + 34);
   document.documentElement.style.setProperty('--composer-safe-bottom', `${safeHeight}px`);
+  updateMobileViewportVars(height);
+}
+
+function updateMobileViewportVars(measuredComposerHeight = 0) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const isMobile = window.matchMedia?.('(max-width: 768px)').matches;
+  if (!isMobile) {
+    clearMobileViewportVars();
+    return;
+  }
+
+  const visualViewport = window.visualViewport;
+  const viewportHeight = visualViewport?.height || window.innerHeight;
+  const composerHeight = measuredComposerHeight
+    || composerWrap.value?.getBoundingClientRect().height
+    || 72;
+  const keyboardVisible = Boolean(visualViewport && window.innerHeight - visualViewport.height > 120);
+  const bottomGap = keyboardVisible ? 16 : 82;
+  const contentPadding = Math.ceil(composerHeight + bottomGap + 34);
+
+  document.documentElement.style.setProperty('--mobile-viewport-height', `${Math.round(viewportHeight)}px`);
+  document.documentElement.style.setProperty('--mobile-composer-bottom', `${bottomGap}px`);
+  document.documentElement.style.setProperty(
+    '--mobile-content-bottom-padding',
+    `calc(${Math.max(contentPadding, 142)}px + env(safe-area-inset-bottom))`
+  );
+}
+
+function clearMobileViewportVars() {
+  document.documentElement.style.removeProperty('--mobile-viewport-height');
+  document.documentElement.style.removeProperty('--mobile-composer-bottom');
+  document.documentElement.style.removeProperty('--mobile-content-bottom-padding');
 }
 
 function initComposerSafeArea() {
@@ -867,7 +902,9 @@ onMounted(async () => {
   restoreSessions();
   syncActiveNavFromRoute(route.query.view);
   window.visualViewport?.addEventListener('resize', updateAppHeight);
+  window.visualViewport?.addEventListener('scroll', updateAppHeight);
   window.addEventListener('resize', updateAppHeight);
+  window.addEventListener('orientationchange', updateAppHeight);
   document.addEventListener('click', handleModeClickOutside);
   window.addEventListener('nexusdoc:open-command-center', openCommandCenter);
   window.addEventListener('keydown', handleGlobalKeydown);
@@ -883,7 +920,10 @@ onUnmounted(() => {
   teardownMotionEffects();
   teardownComposerSafeArea();
   window.visualViewport?.removeEventListener('resize', updateAppHeight);
+  window.visualViewport?.removeEventListener('scroll', updateAppHeight);
   window.removeEventListener('resize', updateAppHeight);
+  window.removeEventListener('orientationchange', updateAppHeight);
+  clearMobileViewportVars();
   document.removeEventListener('click', handleModeClickOutside);
   window.removeEventListener('nexusdoc:open-command-center', openCommandCenter);
   window.removeEventListener('keydown', handleGlobalKeydown);
@@ -9937,6 +9977,54 @@ async function confirmDeleteSession(session) {
     height: 30px !important;
     min-height: 30px !important;
     font-size: 11.5px !important;
+  }
+}
+
+/* Mobile browser bottom-bar guard: lift the GPT-style composer above browser chrome. */
+@media (max-width: 768px) {
+  .message-viewport {
+    height: calc(var(--mobile-viewport-height, var(--app-height, 100dvh)) - 56px - env(safe-area-inset-top)) !important;
+    padding-bottom: var(--mobile-content-bottom-padding, calc(190px + env(safe-area-inset-bottom))) !important;
+    scroll-padding-bottom: var(--mobile-content-bottom-padding, calc(190px + env(safe-area-inset-bottom))) !important;
+  }
+
+  .composer-wrap {
+    position: fixed !important;
+    right: 0 !important;
+    bottom: var(--mobile-composer-bottom, 82px) !important;
+    left: 0 !important;
+    z-index: 920 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    padding: 0 10px !important;
+    pointer-events: none !important;
+  }
+
+  .composer-wrap::before {
+    bottom: calc(-1 * var(--mobile-composer-bottom, 82px)) !important;
+    height: calc(128px + var(--mobile-composer-bottom, 82px)) !important;
+  }
+
+  .composer {
+    max-height: 144px !important;
+    pointer-events: auto !important;
+  }
+
+  .composer:focus-within {
+    max-height: 180px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .message-viewport {
+    padding-bottom: var(--mobile-content-bottom-padding, calc(176px + env(safe-area-inset-bottom))) !important;
+    scroll-padding-bottom: var(--mobile-content-bottom-padding, calc(176px + env(safe-area-inset-bottom))) !important;
+  }
+
+  .composer-wrap {
+    bottom: var(--mobile-composer-bottom, 78px) !important;
+    padding-right: 8px !important;
+    padding-left: 8px !important;
   }
 }
 </style>
