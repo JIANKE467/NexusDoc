@@ -449,8 +449,9 @@
                 </template>
               </el-dropdown>
             </div>
-            <button class="send-button" type="button" :disabled="sending || (!inputText.trim() && !selectedUploadFile)" @click="sendMessage">
-              <span v-if="sending">生成中</span>
+            <button class="send-button" type="button" :disabled="!deviceReady || sending || (!inputText.trim() && !selectedUploadFile)" @click="sendMessage">
+              <span v-if="!deviceReady">初始化中</span>
+              <span v-else-if="sending">生成中</span>
               <span v-else>生成卡片 ✨</span>
             </button>
           </div>
@@ -548,6 +549,7 @@ import {
   getDocumentDetail,
   importDeviceData,
   listDocuments,
+  supportsReadableStream,
   streamGenerateDocument
 } from '../api/document';
 import { generateFromFile, getFileMcpCapabilities } from '../api/fileMcp';
@@ -558,6 +560,7 @@ import {
   markdownToSafeHtml,
   normalizeAiText
 } from '../utils/aiResultFormatter';
+import { getOrCreateDeviceId, safeLocalStorageGet, safeLocalStorageSet } from '../utils/deviceId';
 
 const SESSION_STORAGE_KEY = 'nexusdoc-chat-sessions';
 const DEFAULT_FOLDER = '默认档案夹';
@@ -659,6 +662,8 @@ const cardDetailVisible = ref(false);
 const selectedUploadFile = ref(null);
 const selectedUploadStatus = ref('已选择');
 const fileMcpCapabilities = ref(null);
+const deviceReady = ref(false);
+const deviceError = ref('');
 const route = useRoute();
 const router = useRouter();
 
@@ -667,6 +672,8 @@ let featureObserver = null;
 let composerResizeObserver = null;
 const shouldFollowStream = ref(false);
 const isSourceExpanded = ref(false);
+const activeToastKeys = new Set();
+const hasShownStreamFallbackTip = ref(false);
 
 const activeSession = computed(() => sessions.value.find((session) => session.id === activeSessionId.value));
 const activeMessages = computed(() => activeSession.value?.messages || []);
@@ -818,8 +825,45 @@ function teardownComposerSafeArea() {
   document.documentElement.style.removeProperty('--composer-safe-bottom');
 }
 
+function initDeviceIdentity() {
+  try {
+    getOrCreateDeviceId();
+    deviceReady.value = true;
+    deviceError.value = '';
+  } catch {
+    deviceReady.value = false;
+    deviceError.value = '设备标识初始化失败，请检查浏览器存储权限或重新打开页面';
+    showDedupMessage('device-error', 'error', deviceError.value, 3000);
+  }
+}
+
+function showDedupMessage(key, type, message, duration = 2400) {
+  if (activeToastKeys.has(key)) {
+    return;
+  }
+  activeToastKeys.add(key);
+  ElMessage({
+    type,
+    message,
+    duration,
+    grouping: true
+  });
+  window.setTimeout(() => {
+    activeToastKeys.delete(key);
+  }, duration);
+}
+
+function showStreamFallbackTipOnce() {
+  if (hasShownStreamFallbackTip.value) {
+    return;
+  }
+  hasShownStreamFallbackTip.value = true;
+  showDedupMessage('stream-fallback', 'warning', '当前浏览器流式生成不可用，已切换为普通生成', 2400);
+}
+
 onMounted(async () => {
   updateAppHeight();
+  initDeviceIdentity();
   restoreSessions();
   syncActiveNavFromRoute(route.query.view);
   window.visualViewport?.addEventListener('resize', updateAppHeight);
@@ -878,8 +922,14 @@ async function loadFileMcpCapabilities() {
 }
 
 function restoreSessions() {
-  const cached = localStorage.getItem(SESSION_STORAGE_KEY);
-  sessions.value = sanitizeSessions(cached ? JSON.parse(cached).map(normalizeSession) : []);
+  const cached = safeLocalStorageGet(SESSION_STORAGE_KEY);
+  let cachedSessions = [];
+  try {
+    cachedSessions = cached ? JSON.parse(cached).map(normalizeSession) : [];
+  } catch {
+    cachedSessions = [];
+  }
+  sessions.value = sanitizeSessions(cachedSessions);
   let homeSession = sessions.value.find(isBlankDraftSession);
   if (!homeSession) {
     homeSession = createSessionData('新文档对话');
@@ -891,7 +941,7 @@ function restoreSessions() {
 
 function persistSessions() {
   sessions.value = sanitizeSessions(sessions.value);
-  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions.value));
+  safeLocalStorageSet(SESSION_STORAGE_KEY, JSON.stringify(sessions.value));
 }
 
 function createSessionData(title) {
@@ -997,22 +1047,8 @@ function removeSelectedUploadFile() {
 }
 
 async function pasteClipboardText() {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (!text.trim()) {
-      ElMessage.warning('剪贴板暂无可粘贴文本');
-      focusComposerInput();
-      return;
-    }
-    inputText.value = text.trim();
-    selectedDocType.value = '智能回答';
-    await nextTick();
-    focusComposerInput();
-    ElMessage.success('已粘贴剪贴板文本');
-  } catch {
-    focusComposerInput();
-    ElMessage.info('浏览器未授权读取剪贴板，请直接在输入框粘贴');
-  }
+  focusComposerInput();
+  showDedupMessage('manual-paste', 'info', '请使用系统粘贴操作将剪贴板内容粘贴到输入框', 2400);
 }
 
 async function prepareUrlAnalysis() {
@@ -1353,6 +1389,11 @@ async function sendMessage() {
   if ((!requirement && !file) || sending.value) {
     return;
   }
+  initDeviceIdentity();
+  if (!deviceReady.value) {
+    showDedupMessage('device-error', 'error', deviceError.value || '设备标识初始化失败，请检查浏览器存储权限', 3000);
+    return;
+  }
   if (aiConfig.value && !aiConfig.value.apiKeyConfigured) {
     ElMessage.warning('请在后端运行环境设置 SILICONFLOW_API_KEY 后重启服务');
     return;
@@ -1446,6 +1487,9 @@ async function generateTextWithStream({ sessionId, assistantMessage, payload }) 
   let donePayloadFromEvent = null;
 
   try {
+    if (!supportsReadableStream()) {
+      throw new Error('当前浏览器不支持流式响应');
+    }
     const finalPayload = await streamGenerateDocument(payload, {
       onStart: () => {
         patchMessage(sessionId, assistantMessage.id, {
@@ -1474,7 +1518,7 @@ async function generateTextWithStream({ sessionId, assistantMessage, payload }) 
         });
       },
       onWarning: (message) => {
-        ElMessage.warning(message);
+        showDedupMessage('stream-warning', 'warning', message, 2400);
       },
       onError: (data) => {
         streamError = new Error(data?.message || '流式生成失败');
@@ -1511,11 +1555,15 @@ async function generateTextWithStream({ sessionId, assistantMessage, payload }) 
     }
     patchMessage(sessionId, assistantMessage.id, { loading: false });
   } catch (error) {
-    ElMessage.warning('流式生成暂时不可用，已切换为普通生成。');
-    const result = await generateDocument(payload);
-    await revealAssistantMessage(sessionId, assistantMessage.id, result.resultText || 'AI 暂未返回内容。');
-    if (result.documentId) {
-      await refreshGeneratedMessageFromDocument(result.documentId, sessionId, assistantMessage.id, []);
+    showStreamFallbackTipOnce();
+    try {
+      const result = await generateDocument(payload);
+      await revealAssistantMessage(sessionId, assistantMessage.id, result.resultText || 'AI 暂未返回内容。');
+      if (result.documentId) {
+        await refreshGeneratedMessageFromDocument(result.documentId, sessionId, assistantMessage.id, []);
+      }
+    } finally {
+      patchMessage(sessionId, assistantMessage.id, { loading: false });
     }
   }
 }

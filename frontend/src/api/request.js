@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
-import { getOrCreateDeviceId } from '../utils/deviceId';
+import { createDeviceHeaders, getOrCreateDeviceId, isDeviceMissingError } from '../utils/deviceId';
 
 const request = axios.create({
   baseURL: '/api',
@@ -8,8 +8,7 @@ const request = axios.create({
 });
 
 request.interceptors.request.use((config) => {
-  config.headers = config.headers || {};
-  config.headers['X-Device-Id'] = getOrCreateDeviceId();
+  config.headers = createDeviceHeaders(config.headers || {});
   return config;
 });
 
@@ -17,6 +16,14 @@ request.interceptors.response.use(
   (response) => {
     const result = response.data;
     if (result.code !== 200) {
+      if (isDeviceMissingError(new Error(result.message)) && !response.config?._deviceRetry) {
+        getOrCreateDeviceId();
+        return request({
+          ...response.config,
+          _deviceRetry: true,
+          headers: createDeviceHeaders(response.config?.headers || {})
+        });
+      }
       if (!response.config?.silentError) {
         ElMessage.error(result.message || '请求失败');
       }
@@ -25,6 +32,14 @@ request.interceptors.response.use(
     return result.data;
   },
   (error) => {
+    if (isDeviceMissingError(error) && !error.config?._deviceRetry) {
+      getOrCreateDeviceId();
+      return request({
+        ...error.config,
+        _deviceRetry: true,
+        headers: createDeviceHeaders(error.config?.headers || {})
+      });
+    }
     const isProxyBackendError = error.response?.status === 500
       && typeof error.response?.data === 'string'
       && error.response.data.includes('http://localhost:8080');

@@ -1,5 +1,5 @@
 import request from './request';
-import { getOrCreateDeviceId } from '../utils/deviceId';
+import { createDeviceHeaders } from '../utils/deviceId';
 
 const DEBUG_STREAM = import.meta.env.DEV;
 
@@ -7,14 +7,24 @@ export function generateDocument(data) {
   return request.post('/document/generate', data);
 }
 
+export function supportsReadableStream() {
+  return typeof window !== 'undefined'
+    && typeof window.fetch === 'function'
+    && typeof window.ReadableStream !== 'undefined'
+    && typeof TextDecoder !== 'undefined';
+}
+
 export async function streamGenerateDocument(data, handlers = {}) {
+  if (!supportsReadableStream()) {
+    throw new Error('当前浏览器不支持流式响应');
+  }
+
   const response = await fetch('/api/document/generate/stream', {
     method: 'POST',
-    headers: {
+    headers: createDeviceHeaders({
       'Content-Type': 'application/json',
-      'X-Device-Id': getOrCreateDeviceId(),
       Accept: 'text/event-stream'
-    },
+    }),
     body: JSON.stringify(data)
   });
 
