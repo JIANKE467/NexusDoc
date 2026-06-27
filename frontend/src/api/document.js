@@ -1,6 +1,8 @@
 import request from './request';
 import { getOrCreateDeviceId } from '../utils/deviceId';
 
+const DEBUG_STREAM = import.meta.env.DEV;
+
 export function generateDocument(data) {
   return request.post('/document/generate', data);
 }
@@ -24,7 +26,6 @@ export async function streamGenerateDocument(data, handlers = {}) {
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   let finalPayload = null;
-  let currentEventName = 'message';
 
   while (true) {
     const { value, done } = await reader.read();
@@ -32,29 +33,23 @@ export async function streamGenerateDocument(data, handlers = {}) {
       break;
     }
 
+    logStream('chunk', value?.byteLength || 0);
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || '';
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() || '';
 
-    for (const line of lines) {
-      const parsed = parseSseLine(line, currentEventName);
-      if (parsed?.eventName) {
-        currentEventName = parsed.eventName;
-        continue;
-      }
-      const payload = parsed?.payload;
-      if (!payload) {
-        continue;
-      }
+    for (const eventText of events) {
+      const payload = parseSseEvent(eventText);
+      if (!payload) continue;
+      logStream('event', payload.data?.type || payload.eventName);
       finalPayload = payload.data || finalPayload;
       dispatchStreamPayload(payload, handlers);
     }
   }
 
   if (buffer.trim()) {
-    const parsed = parseSseLine(buffer, currentEventName);
-    if (parsed?.payload) {
-      const payload = parsed.payload;
+    const payload = parseSseEvent(buffer);
+    if (payload) {
       finalPayload = payload.data || finalPayload;
       dispatchStreamPayload(payload, handlers);
     }
@@ -63,27 +58,37 @@ export async function streamGenerateDocument(data, handlers = {}) {
   return finalPayload;
 }
 
-function parseSseLine(line, eventName = 'message') {
-  const trimmed = line.trim();
-  if (!trimmed) {
+function parseSseEvent(eventText) {
+  if (!eventText?.trim()) {
     return null;
   }
-  if (trimmed.startsWith('event:')) {
-    return { eventName: trimmed.slice(6).trim() || 'message' };
-  }
-  if (!trimmed.startsWith('data:')) {
-    return null;
+  const lines = eventText.split(/\r?\n/);
+  let eventName = 'message';
+  const dataLines = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith(':')) continue;
+    if (trimmed.startsWith('event:')) {
+      eventName = trimmed.slice(6).trim() || 'message';
+      continue;
+    }
+    if (trimmed.startsWith('data:')) {
+      dataLines.push(trimmed.slice(5).trimStart());
+    }
   }
 
-  const dataText = trimmed.slice(5).trimStart();
+  const dataText = dataLines.join('\n').trim();
+  if (!dataText) {
+    return null;
+  }
   if (dataText === '[DONE]') {
-    return { payload: { eventName: 'done', data: { type: 'done' } } };
+    return { eventName: 'done', data: { type: 'done' } };
   }
 
   try {
-    return { payload: { eventName, data: JSON.parse(dataText) } };
+    return { eventName, data: JSON.parse(dataText) };
   } catch (error) {
-    return { payload: { eventName, data: { type: eventName, content: dataText } } };
+    return { eventName, data: { type: eventName, content: dataText } };
   }
 }
 
@@ -91,6 +96,7 @@ function dispatchStreamPayload(payload, handlers) {
   const eventType = payload.data?.type || payload.eventName;
   const openAiDelta = payload.data?.choices?.[0]?.delta?.content;
   if (openAiDelta) {
+    logStream('delta', openAiDelta.length);
     handlers.onDelta?.(openAiDelta);
     return;
   }
@@ -99,7 +105,19 @@ function dispatchStreamPayload(payload, handlers) {
     return;
   }
   if (eventType === 'delta' || eventType === 'card_delta') {
+    logStream('delta', (payload.data?.content || '').length);
     handlers.onDelta?.(payload.data?.content || '');
+    return;
+  }
+  if (typeof payload.data?.content === 'string') {
+    logStream('delta', payload.data.content.length);
+    handlers.onDelta?.(payload.data.content);
+    return;
+  }
+  const openAiMessage = payload.data?.choices?.[0]?.message?.content;
+  if (openAiMessage) {
+    logStream('delta', openAiMessage.length);
+    handlers.onDelta?.(openAiMessage);
     return;
   }
   if (eventType === 'source') {
@@ -123,6 +141,13 @@ function dispatchStreamPayload(payload, handlers) {
     return;
   }
   handlers.onMessage?.(payload.data);
+}
+
+function logStream(stage, value) {
+  if (!DEBUG_STREAM) {
+    return;
+  }
+  console.log(`[NexusDoc Stream] ${stage}`, value);
 }
 
 export function listDocuments(userId) {

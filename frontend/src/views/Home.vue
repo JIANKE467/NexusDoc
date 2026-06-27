@@ -1342,13 +1342,16 @@ async function sendMessage() {
     : requirement;
   const userMessage = createMessage('user', userContent);
   const assistantMessage = createMessage('assistant', '', true);
-  if (session.isDraft) {
-    session.isDraft = false;
-  }
-  session.messages.push(userMessage, assistantMessage);
-  session.title = buildSessionTitle(file ? file.name : requirement);
-  session.updatedAt = formatSessionTime();
-  session.updatedAtValue = Date.now();
+  const sessionId = session.id;
+  const nextMessages = [...(session.messages || []), userMessage, assistantMessage];
+  const nextSessionMeta = {
+    isDraft: false,
+    messages: nextMessages,
+    title: buildSessionTitle(file ? file.name : requirement),
+    updatedAt: formatSessionTime(),
+    updatedAtValue: Date.now()
+  };
+  patchSession(sessionId, nextSessionMeta);
   inputText.value = '';
   sending.value = true;
   shouldFollowStream.value = true;
@@ -1370,9 +1373,10 @@ async function sendMessage() {
         cardTypes: quickCardPills.map((pill) => pill.label).join('、'),
         requirement
       });
-      await revealAssistantMessage(assistantMessage, buildFileMcpResultText(result) || 'AI 暂未返回内容。');
+      await revealAssistantMessage(sessionId, assistantMessage.id, buildFileMcpResultText(result) || 'AI 暂未返回内容。');
     } else {
       await generateTextWithStream({
+        sessionId,
         assistantMessage,
         payload: {
           userId: ANONYMOUS_USER_ID,
@@ -1388,10 +1392,12 @@ async function sendMessage() {
       selectedUploadStatus.value = '已生成';
       selectedUploadFile.value = null;
     }
-    await refreshAfterGeneration(session);
+    await refreshAfterGeneration(sessions.value.find((item) => item.id === sessionId) || session);
   } catch (error) {
-    assistantMessage.loading = false;
-    assistantMessage.content = error.message || 'AI 服务暂时不可用，请稍后重试。';
+    patchMessage(sessionId, assistantMessage.id, {
+      loading: false,
+      content: error.message || 'AI 服务暂时不可用，请稍后重试。'
+    });
     if (file) {
       selectedUploadStatus.value = '生成失败';
     }
@@ -1406,7 +1412,7 @@ async function sendMessage() {
   }
 }
 
-async function generateTextWithStream({ assistantMessage, payload }) {
+async function generateTextWithStream({ sessionId, assistantMessage, payload }) {
   let streamedText = '';
   const streamedSources = [];
   let streamError = null;
@@ -1416,16 +1422,20 @@ async function generateTextWithStream({ assistantMessage, payload }) {
   try {
     const finalPayload = await streamGenerateDocument(payload, {
       onStart: () => {
-        assistantMessage.loading = true;
-        assistantMessage.content = '';
+        patchMessage(sessionId, assistantMessage.id, {
+          loading: true,
+          content: ''
+        });
       },
       onDelta: (delta) => {
         if (!delta) {
           return;
         }
         streamedText += delta;
-        assistantMessage.loading = false;
-        assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+        patchMessage(sessionId, assistantMessage.id, {
+          loading: false,
+          content: buildStreamingAssistantContent(streamedText, streamedSources)
+        });
         scrollToLatestGeneratedCard({ smooth: false });
       },
       onSource: (source) => {
@@ -1433,8 +1443,10 @@ async function generateTextWithStream({ assistantMessage, payload }) {
           return;
         }
         streamedSources.push(source);
-        assistantMessage.loading = false;
-        assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+        patchMessage(sessionId, assistantMessage.id, {
+          loading: false,
+          content: buildStreamingAssistantContent(streamedText, streamedSources)
+        });
         scrollToLatestGeneratedCard({ smooth: false });
       },
       onWarning: (message) => {
@@ -1450,9 +1462,11 @@ async function generateTextWithStream({ assistantMessage, payload }) {
         donePayloadFromEvent = data || null;
         if (data?.resultText && !streamedText.trim()) {
           streamedText = data.resultText;
-          assistantMessage.content = buildStreamingAssistantContent(streamedText, streamedSources);
+          patchMessage(sessionId, assistantMessage.id, {
+            content: buildStreamingAssistantContent(streamedText, streamedSources)
+          });
         }
-        assistantMessage.loading = false;
+        patchMessage(sessionId, assistantMessage.id, { loading: false });
       }
     });
 
@@ -1461,35 +1475,39 @@ async function generateTextWithStream({ assistantMessage, payload }) {
     }
     const completionPayload = donePayloadFromEvent || finalPayload || savedPayload;
     if (completionPayload?.resultText && !streamedText.trim()) {
-      assistantMessage.content = buildStreamingAssistantContent(completionPayload.resultText, streamedSources);
+      patchMessage(sessionId, assistantMessage.id, {
+        content: buildStreamingAssistantContent(completionPayload.resultText, streamedSources)
+      });
     }
     if (completionPayload?.documentId) {
-      await refreshGeneratedMessageFromDocument(completionPayload.documentId, assistantMessage, streamedSources);
+      await refreshGeneratedMessageFromDocument(completionPayload.documentId, sessionId, assistantMessage.id, streamedSources);
     }
-    if (!assistantMessage.content.trim()) {
-      assistantMessage.content = 'AI 暂未返回内容。';
+    if (!getMessageContent(sessionId, assistantMessage.id).trim()) {
+      patchMessage(sessionId, assistantMessage.id, { content: 'AI 暂未返回内容。' });
     }
-    assistantMessage.loading = false;
+    patchMessage(sessionId, assistantMessage.id, { loading: false });
   } catch (error) {
     ElMessage.warning('流式生成暂时不可用，已切换为普通生成。');
     const result = await generateDocument(payload);
-    await revealAssistantMessage(assistantMessage, result.resultText || 'AI 暂未返回内容。');
+    await revealAssistantMessage(sessionId, assistantMessage.id, result.resultText || 'AI 暂未返回内容。');
     if (result.documentId) {
-      await refreshGeneratedMessageFromDocument(result.documentId, assistantMessage, []);
+      await refreshGeneratedMessageFromDocument(result.documentId, sessionId, assistantMessage.id, []);
     }
   }
 }
 
-async function refreshGeneratedMessageFromDocument(documentId, assistantMessage, sources = []) {
+async function refreshGeneratedMessageFromDocument(documentId, sessionId, messageId, sources = []) {
   try {
     const detail = await getDocumentDetail(documentId);
     if (detail?.resultText) {
-      assistantMessage.content = buildStreamingAssistantContent(detail.resultText, sources);
+      patchMessage(sessionId, messageId, {
+        content: buildStreamingAssistantContent(detail.resultText, sources)
+      });
     }
   } catch {
     // The streamed content is already visible; detail refresh is a final consistency pass.
   } finally {
-    assistantMessage.loading = false;
+    patchMessage(sessionId, messageId, { loading: false });
   }
 }
 
@@ -1529,12 +1547,55 @@ function createMessage(role, content, loading = false) {
   };
 }
 
-async function revealAssistantMessage(message, fullText) {
-  message.loading = false;
-  message.content = '';
+function patchSession(sessionId, patch) {
+  sessions.value = sessions.value.map((session) => {
+    if (session.id !== sessionId) {
+      return session;
+    }
+    return normalizeSession({
+      ...session,
+      ...patch,
+      messages: patch.messages ? [...patch.messages] : [...(session.messages || [])]
+    });
+  });
+}
+
+function patchMessage(sessionId, messageId, patch) {
+  const session = sessions.value.find((item) => item.id === sessionId);
+  if (!session) {
+    return;
+  }
+  const messages = (session.messages || []).map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+    return {
+      ...message,
+      ...patch
+    };
+  });
+  patchSession(sessionId, { messages });
+}
+
+function getMessageContent(sessionId, messageId) {
+  const session = sessions.value.find((item) => item.id === sessionId);
+  const message = session?.messages?.find((item) => item.id === messageId);
+  return message?.content || '';
+}
+
+async function revealAssistantMessage(sessionId, messageId, fullText) {
+  patchMessage(sessionId, messageId, {
+    loading: false,
+    content: ''
+  });
   const chunkSize = fullText.length > 800 ? 8 : 3;
+  let visibleText = '';
   for (let index = 0; index < fullText.length; index += chunkSize) {
-    message.content += fullText.slice(index, index + chunkSize);
+    visibleText += fullText.slice(index, index + chunkSize);
+    patchMessage(sessionId, messageId, {
+      loading: false,
+      content: visibleText
+    });
     await wait(14);
     scrollToLatestGeneratedCard({ smooth: false });
   }
